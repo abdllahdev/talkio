@@ -36,6 +36,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
+    "nanoid": "^5.1.6",
     "xstate": "^5.25.0"
   },
   "devDependencies": {
