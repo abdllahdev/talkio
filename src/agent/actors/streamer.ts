@@ -1,42 +1,49 @@
 /**
  * Audio Streamer Actor
  *
- * Handles audio streaming via the audio streamer adapter.
- * Receives audio chunks and streams them to the user.
+ * Internal actor that handles audio output streaming.
+ * Receives audio chunks and pushes them to the ReadableStream controller.
+ * Handles cancellation via abort signal for proper barge-in support.
  */
 
 import { fromCallback } from "xstate";
-import type { ResolvedAgentConfig } from "../../types/config";
-import type { AgentEvent } from "../../types/events";
+import type { MachineEvent } from "../../types/events";
 
 export const audioStreamerActor = fromCallback<
-  AgentEvent,
+  MachineEvent,
   {
-    config: ResolvedAgentConfig;
+    audioStreamController: ReadableStreamDefaultController<Float32Array> | null;
     abortSignal: AbortSignal;
-    sayFn: (text: string) => void;
-    interruptFn: () => void;
-    isSpeakingFn: () => boolean;
   }
 >(({ sendBack, receive, input }) => {
-  const { config, abortSignal, sayFn, interruptFn, isSpeakingFn } = input;
+  const { audioStreamController, abortSignal } = input;
 
-  config.adapters.audioStreamer.start({
-    streamEnd: () => sendBack({ type: "audio-output-end" }),
-    error: (error) => sendBack({ type: "audio-output-error", error }),
-    say: sayFn,
-    interrupt: interruptFn,
-    isSpeaking: isSpeakingFn,
-    signal: abortSignal,
-  });
+  let isAborted = false;
 
-  sendBack({ type: "audio-output-start" });
+  const handleAbort = () => {
+    isAborted = true;
+    sendBack({ type: "_audio:output-end" });
+  };
+
+  abortSignal.addEventListener("abort", handleAbort);
+
+  sendBack({ type: "_audio:output-start" });
 
   receive((event) => {
-    if (event.type === "audio-output-stream") {
-      config.adapters.audioStreamer.stream(event.audio);
+    if (isAborted) return;
+
+    if (event.type === "_audio:output-chunk") {
+      if (audioStreamController) {
+        try {
+          audioStreamController.enqueue(event.audio);
+        } catch {
+          // Stream may be closed, ignore
+        }
+      }
     }
   });
 
-  return () => config.adapters.audioStreamer.stop();
+  return () => {
+    abortSignal.removeEventListener("abort", handleAbort);
+  };
 });

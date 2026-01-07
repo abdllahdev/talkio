@@ -3,50 +3,38 @@
  */
 
 import type {
-  AudioStreamerAdapter,
-  LLMAdapter,
-  STTAdapter,
-  TTSAdapter,
-  TurnDetectorAdapter,
-  VADAdapter,
-} from "../adapters/types";
+  LLMProvider,
+  STTProvider,
+  TTSProvider,
+  TurnDetectorProvider,
+  VADProvider,
+} from "../providers/types";
 import type { AgentEvent } from "./events";
 
 /**
- * Required adapters that must be provided.
+ * Audio format configuration.
+ * Applies to both input and output audio throughout the pipeline.
  */
-export interface RequiredAdapters {
-  /** Speech-to-Text adapter */
-  stt: STTAdapter;
-  /** Language Model adapter */
-  llm: LLMAdapter;
-  /** Text-to-Speech adapter */
-  tts: TTSAdapter;
-  /** Audio Output adapter */
-  audioStreamer: AudioStreamerAdapter;
-}
-
-/**
- * Optional adapters that enhance functionality.
- */
-export interface OptionalAdapters {
+export interface AudioFormat {
   /**
-   * Voice Activity Detection adapter.
-   * If not provided, STT's built-in VAD is used as fallback.
+   * Sample rate in Hz.
+   * @default 24000
    */
-  vad?: VADAdapter;
+  sampleRate: 8000 | 16000 | 22050 | 24000 | 44100 | 48000;
 
   /**
-   * Turn Detector adapter.
-   * If not provided, STT's final transcript marks turn end.
+   * Number of audio channels.
+   * @default 1 (mono)
    */
-  turnDetector?: TurnDetectorAdapter;
-}
+  channels: 1 | 2;
 
-/**
- * All adapters (required + optional).
- */
-export type Adapters = RequiredAdapters & OptionalAdapters;
+  /**
+   * Bit depth for audio samples.
+   * 16 = Int16Array, 32 = Float32Array
+   * @default 32
+   */
+  bitDepth: 16 | 32;
+}
 
 /**
  * Barge-in configuration.
@@ -67,55 +55,51 @@ export interface BargeInConfig {
 }
 
 /**
- * Agent behavior configuration.
- */
-export interface AgentBehaviorConfig {
-  /**
-   * Barge-in (interruption) detection configuration.
-   */
-  bargeIn?: BargeInConfig;
-}
-
-/**
  * Configuration for createAgent.
  */
 export interface AgentConfig {
   /**
-   * User-provided adapters.
+   * Speech-to-Text provider.
    */
-  adapters: Adapters;
+  stt: STTProvider;
 
   /**
-   * Agent behavior configuration.
+   * Language Model provider.
    */
-  config?: AgentBehaviorConfig;
+  llm: LLMProvider;
+
+  /**
+   * Text-to-Speech provider.
+   */
+  tts: TTSProvider;
+
+  /**
+   * Voice Activity Detection provider.
+   * If not provided, STT's built-in VAD is used as fallback.
+   */
+  vad?: VADProvider;
+
+  /**
+   * Turn Detector provider.
+   * If not provided, STT's final transcript marks turn end.
+   */
+  turnDetector?: TurnDetectorProvider;
+
+  /**
+   * Barge-in (interruption) detection configuration.
+   */
+  bargeIn?: BargeInConfig;
+
+  /**
+   * Audio format configuration.
+   * Providers will use this to know what format to produce/consume.
+   * @default { sampleRate: 24000, channels: 1, bitDepth: 32 }
+   */
+  audioFormat?: AudioFormat;
 
   /**
    * Event handler callback.
    * Called for all agent events (observability only).
    */
   onEvent?: (event: AgentEvent) => void;
-}
-
-/**
- * Resolved configuration with defaults applied.
- */
-export interface ResolvedAgentConfig {
-  adapters: Adapters;
-  bargeIn: Required<BargeInConfig>;
-  onEvent: (event: AgentEvent) => void;
-}
-
-/**
- * Apply default values to agent configuration.
- */
-export function resolveConfig(config: AgentConfig): ResolvedAgentConfig {
-  return {
-    adapters: config.adapters,
-    bargeIn: {
-      enabled: config.config?.bargeIn?.enabled ?? true,
-      minDurationMs: config.config?.bargeIn?.minDurationMs ?? 200,
-    },
-    onEvent: config.onEvent ?? (() => {}),
-  };
 }

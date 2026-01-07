@@ -7,7 +7,9 @@
 import { nanoid } from "nanoid";
 import { createActor } from "xstate";
 import type { AgentMachineOutput, Message } from "../types/common";
-import { resolveConfig, type AgentConfig } from "../types/config";
+import type { AgentConfig } from "../types/config";
+import type { PublicAgentEvent } from "../types/events";
+import type { AgentMetrics, MetricsTrackingState } from "../types/metrics";
 import { agentMachine } from "./machine";
 
 /**
@@ -17,6 +19,23 @@ import { agentMachine } from "./machine";
 export interface Agent {
   /** Unique identifier for this agent instance */
   readonly id: string;
+
+  /**
+   * ReadableStream of audio output chunks.
+   * Yields Float32Array chunks as they are produced by TTS.
+   * Use this to handle audio playback in your application.
+   *
+   * @example
+   * ```typescript
+   * const reader = agent.audioStream.getReader();
+   * while (true) {
+   *   const { done, value } = await reader.read();
+   *   if (done) break;
+   *   playAudio(value); // Float32Array chunk
+   * }
+   * ```
+   */
+  readonly audioStream: ReadableStream<Float32Array>;
 
   /**
    * Start the agent.
@@ -74,6 +93,9 @@ export interface AgentState {
 
   /** Output when agent is done (status === 'done') */
   output: AgentMachineOutput | undefined;
+
+  /** Cumulative metrics for the session */
+  metrics: AgentMetrics;
 }
 
 /**
@@ -83,6 +105,57 @@ function isRunningState(value: string | Record<string, unknown>): boolean {
   if (value === "running") return true;
   if (typeof value === "object" && value !== null && "running" in value) return true;
   return false;
+}
+
+/**
+ * Check if an event is internal (prefixed with "_")
+ */
+function isInternalEvent(event: { type: string }): boolean {
+  return event.type.startsWith("_");
+}
+
+/**
+ * Compute aggregate AgentMetrics from the internal tracking state.
+ */
+function computeAgentMetrics(metricsState: MetricsTrackingState): AgentMetrics {
+  const m = metricsState;
+  const now = Date.now();
+
+  return {
+    session: {
+      startedAt: m.sessionStartedAt ?? 0,
+      duration: m.sessionStartedAt ? now - m.sessionStartedAt : 0,
+    },
+    turns: {
+      total: m.totalTurns,
+      completed: m.completedTurns,
+      interrupted: m.interruptedTurns,
+      abandoned: m.abandonedTurns,
+    },
+    latency: {
+      averageTimeToFirstToken:
+        m.completedTurnsForAverage > 0 ? m.totalTimeToFirstToken / m.completedTurnsForAverage : 0,
+      averageTimeToFirstAudio:
+        m.completedTurnsForAverage > 0 ? m.totalTimeToFirstAudio / m.completedTurnsForAverage : 0,
+      averageTurnDuration:
+        m.completedTurnsForAverage > 0 ? m.totalTurnDuration / m.completedTurnsForAverage : 0,
+    },
+    content: {
+      totalLLMTokens: m.totalLLMTokens,
+      totalUserTranscriptChars: m.totalUserTranscriptChars,
+      totalResponseChars: m.totalResponseChars,
+    },
+    audio: {
+      totalUserSpeechDuration: m.totalUserSpeechDuration,
+      totalAgentSpeakingDuration: m.totalAgentSpeakingDuration,
+      totalAudioChunks: m.totalAudioChunks,
+      totalAudioSamples: m.totalAudioSamples,
+    },
+    errors: {
+      total: Object.values(m.errorsBySource).reduce((a, b) => a + b, 0),
+      bySource: m.errorsBySource,
+    },
+  };
 }
 
 /**
@@ -102,10 +175,10 @@ function isRunningState(value: string | Record<string, unknown>): boolean {
  *   },
  *   onEvent: (event) => {
  *     switch (event.type) {
- *       case 'turn:end':
+ *       case 'human-turn:ended':
  *         console.log('User said:', event.transcript);
  *         break;
- *       case 'response:sentence':
+ *       case 'ai-turn:sentence':
  *         console.log('Agent:', event.sentence);
  *         break;
  *     }
@@ -119,34 +192,53 @@ function isRunningState(value: string | Record<string, unknown>): boolean {
  */
 export function createAgent(config: AgentConfig): Agent {
   const id = nanoid();
-  const resolvedConfig = resolveConfig(config);
 
-  // Create the XState actor
+  // Create audio output stream and capture the controller
+  let audioStreamController: ReadableStreamDefaultController<Float32Array> | null = null;
+  const audioStream = new ReadableStream<Float32Array>({
+    start(controller) {
+      audioStreamController = controller;
+    },
+  });
+
+  // Create the XState actor with the stream controller
   const actor = createActor(agentMachine, {
-    input: { config: resolvedConfig },
+    input: { config, audioStreamController },
   });
 
   // Subscribe to emitted events using wildcard and forward to onEvent callback
-  // This uses XState's native event emission pattern
+  // Filter out internal events (prefixed with "_") - only expose public events
   actor.on("*", (event) => {
-    resolvedConfig.onEvent(event);
+    if (!isInternalEvent(event)) {
+      config.onEvent?.(event as PublicAgentEvent);
+    }
   });
 
   return {
     id,
+    audioStream,
 
     start() {
       actor.start();
-      actor.send({ type: "agent-start" });
+      // Use internal event to start the agent
+      actor.send({ type: "_agent:start" });
     },
 
     sendAudio(audio: Float32Array) {
-      actor.send({ type: "audio-input-chunk", audio });
+      // Use internal event for audio input
+      actor.send({ type: "_audio:input", audio });
     },
 
     stop() {
-      actor.send({ type: "agent-stop" });
+      // Use internal event to stop the agent
+      actor.send({ type: "_agent:stop" });
       actor.stop();
+      // Close the audio stream when agent stops
+      try {
+        audioStreamController?.close();
+      } catch {
+        // Stream may already be closed
+      }
     },
 
     subscribe(callback: (state: AgentState) => void) {
@@ -159,6 +251,7 @@ export function createAgent(config: AgentConfig): Agent {
           partialTranscript: snapshot.context.partialTranscript,
           status: snapshot.status,
           output: snapshot.output,
+          metrics: computeAgentMetrics(snapshot.context.metrics),
         });
       });
       return () => subscription.unsubscribe();
@@ -174,6 +267,7 @@ export function createAgent(config: AgentConfig): Agent {
         partialTranscript: snapshot.context.partialTranscript,
         status: snapshot.status,
         output: snapshot.output,
+        metrics: computeAgentMetrics(snapshot.context.metrics),
       };
     },
   };

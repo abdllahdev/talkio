@@ -4,8 +4,8 @@
  * All callback actors used by the agent state machine.
  */
 
-export { llmActor } from "./llm";
 export { audioStreamerActor } from "./streamer";
+export { llmActor } from "./llm";
 export { sttActor } from "./stt";
 export { ttsActor } from "./tts";
 export { turnDetectorActor } from "./turn-detector";

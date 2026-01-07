@@ -40,96 +40,102 @@ export type {
 // CONFIGURATION TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export type {
-  Adapters,
-  AgentBehaviorConfig,
-  AgentConfig,
-  BargeInConfig,
-  OptionalAdapters,
-  RequiredAdapters,
-} from "./types/config";
+export type { AgentConfig, AudioFormat, BargeInConfig } from "./types/config";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EVENT TYPES
+// Public events only - internal events are not exported
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export type {
-  // Main union type
+  // Main union type (alias for PublicAgentEvent)
   AgentEvent,
-  // AI turn events
-  AgentStartEvent,
-  AgentStopEvent,
-  AITurnEndEvent,
-  AITurnEvent,
-  AITurnInterruptedEvent,
-  AITurnStartEvent,
-  // Audio events
-  AudioEvent,
-  AudioInputChunkEvent,
-  AudioOutputEndEvent,
-  AudioOutputErrorEvent,
-  AudioOutputStartEvent,
-  AudioOutputStreamEvent,
-  // Other events
-  ControlEvent,
-  HumanTurnEndEvent,
-  HumanTurnEvent,
+  // Also export as PublicAgentEvent for clarity
+  PublicAgentEvent,
+
+  // Agent lifecycle events
+  AgentLifecycleEvent,
+  AgentStartedEvent,
+  AgentStoppedEvent,
+  AgentErrorEvent,
+
   // Human turn events
-  HumanTurnStartEvent,
-  // Individual Control events
-  InterruptEvent,
-  LLMCompleteEvent,
-  LLMErrorEvent,
-  LLMEvent,
-  LLMSentenceEvent,
-  // Individual LLM events
-  LLMTokenEvent,
-  SayEvent,
-  STTErrorEvent,
-  // Grouped event types
-  STTEvent,
-  STTSpeechEndEvent,
-  STTSpeechStartEvent,
-  STTTranscriptFinalEvent,
-  // Individual STT events
-  STTTranscriptPartialEvent,
-  // Individual TTS events
-  TTSChunkEvent,
-  TTSCompleteEvent,
-  TTSErrorEvent,
-  TTSEvent,
-  TurnAbandonedEvent,
-  TurnDetectorEvent,
-  // Individual Turn Detector events
-  TurnEndEvent,
-  VADEvent,
+  HumanTurnEvent,
+  HumanTurnStartedEvent,
+  HumanTurnTranscriptEvent,
+  HumanTurnEndedEvent,
+  HumanTurnAbandonedEvent,
+
+  // AI turn events
+  AITurnEvent,
+  AITurnStartedEvent,
+  AITurnTokenEvent,
+  AITurnSentenceEvent,
+  AITurnAudioEvent,
+  AITurnEndedEvent,
+  AITurnInterruptedEvent,
+
+  // Debug events
+  DebugEvent,
   VADProbabilityEvent,
-  VADSpeechEndEvent,
-  // Individual VAD events
-  VADSpeechStartEvent,
 } from "./types/events";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ADAPTER INTERFACES
+// METRICS TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export type {
-  // Audio Output
-  AudioStreamerAdapter,
-  AudioStreamerContext,
+  // Turn-level metrics
+  HumanTurnMetrics,
+  AITurnMetrics,
+
+  // Aggregate metrics (cumulative for session, via AgentState.metrics)
+  AgentMetrics,
+  SessionMetrics,
+  TurnStatistics,
+  LatencyMetrics,
+  ContentMetrics,
+  AudioMetrics,
+  ErrorMetrics,
+} from "./types/metrics";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROVIDER INTERFACES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type {
+  // Base types
+  BaseProvider,
+  ProviderMetadata,
+  ProviderType,
   // LLM
-  LLMAdapter,
   LLMContext,
+  LLMProvider,
   // STT
-  STTAdapter,
   STTContext,
+  STTProvider,
   // TTS
-  TTSAdapter,
   TTSContext,
+  TTSProvider,
   // Turn Detector (optional)
-  TurnDetectorAdapter,
   TurnDetectorContext,
+  TurnDetectorProvider,
   // VAD (optional)
-  VADAdapter,
   VADContext,
-} from "./adapters/types";
+  VADProvider,
+} from "./providers/types";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEPRECATED ADAPTER ALIASES (for backward compatibility)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** @deprecated Use STTProvider instead */
+export type { STTProvider as STTAdapter } from "./providers/types";
+/** @deprecated Use LLMProvider instead */
+export type { LLMProvider as LLMAdapter } from "./providers/types";
+/** @deprecated Use TTSProvider instead */
+export type { TTSProvider as TTSAdapter } from "./providers/types";
+/** @deprecated Use VADProvider instead */
+export type { VADProvider as VADAdapter } from "./providers/types";
+/** @deprecated Use TurnDetectorProvider instead */
+export type { TurnDetectorProvider as TurnDetectorAdapter } from "./providers/types";

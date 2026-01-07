@@ -6,7 +6,8 @@
 
 import type { ActorRefFrom } from "xstate";
 import type { Message } from "../types/common";
-import type { ResolvedAgentConfig } from "../types/config";
+import type { AgentConfig } from "../types/config";
+import { type MetricsTrackingState, createInitialMetricsState } from "../types/metrics";
 import type { llmActor, ttsActor } from "./actors";
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -14,7 +15,7 @@ import type { llmActor, ttsActor } from "./actors";
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export interface AgentMachineContext {
-  config: ResolvedAgentConfig;
+  config: AgentConfig;
   messages: Message[];
   partialTranscript: string;
   currentResponse: string;
@@ -33,13 +34,26 @@ export interface AgentMachineContext {
   // Event source flags
   vadSource: "adapter" | "stt";
   turnSource: "adapter" | "stt";
+
+  // Audio output stream controller (for pushing audio chunks to ReadableStream)
+  audioStreamController: ReadableStreamDefaultController<Float32Array> | null;
+
+  // AI turn tracking (for proper turn end emission)
+  aiTurnHadAudio: boolean;
+  lastLLMResponse: string;
+
+  // Metrics tracking state
+  metrics: MetricsTrackingState;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INITIAL CONTEXT FACTORY
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function createInitialContext(config: ResolvedAgentConfig): AgentMachineContext {
+export function createInitialContext(
+  config: AgentConfig,
+  audioStreamController: ReadableStreamDefaultController<Float32Array> | null,
+): AgentMachineContext {
   return {
     config,
     messages: [],
@@ -52,7 +66,11 @@ export function createInitialContext(config: ResolvedAgentConfig): AgentMachineC
     llmRef: null,
     ttsRef: null,
     sentenceQueue: [],
-    vadSource: config.adapters.vad ? "adapter" : "stt",
-    turnSource: config.adapters.turnDetector ? "adapter" : "stt",
+    vadSource: config.vad ? "adapter" : "stt",
+    turnSource: config.turnDetector ? "adapter" : "stt",
+    audioStreamController,
+    aiTurnHadAudio: false,
+    lastLLMResponse: "",
+    metrics: createInitialMetricsState(),
   };
 }

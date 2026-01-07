@@ -1,51 +1,74 @@
 /**
- * Adapter Types
+ * Provider Types
  *
- * These interfaces define the contracts that user-provided adapters must implement.
- * Each adapter receives a context object with emit methods (to report events) and
+ * These interfaces define the contracts that provider packages must implement.
+ * Each provider receives a context object with emit methods (to report events) and
  * control methods (to trigger orchestration features).
+ *
+ * Provider packages (e.g., @voice-ai/provider-deepgram) implement these interfaces
+ * via factory functions like createDeepgramSTT({ apiKey, model }).
  */
 
 import type { Message } from "../types/common";
+import type { AudioFormat } from "../types/config";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// COMMON ORCHESTRATION CONTEXT
+// PROVIDER METADATA
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Common orchestration methods available to all adapters.
- * These allow adapters to trigger speech and interruptions.
+ * Provider type identifier.
  */
-export interface OrchestrationContext {
+export type ProviderType = "stt" | "llm" | "tts" | "vad" | "turn-detector";
+
+/**
+ * Metadata included with every provider for debugging and identification.
+ */
+export interface ProviderMetadata {
   /**
-   * Trigger speech immediately (for fillers, acknowledgments, etc.).
-   * This will be synthesized and streamed while waiting for the main response.
-   * @param text - Text to speak
+   * Human-readable provider name.
+   * @example "Deepgram", "OpenAI", "ElevenLabs"
    */
-  say(text: string): void;
+  name: string;
 
   /**
-   * Interrupt/stop current speech streaming.
-   * Use this when the main response arrives and a filler is still playing.
+   * Provider package version.
+   * @example "1.0.0"
    */
-  interrupt(): void;
+  version: string;
 
   /**
-   * Check if the agent is currently speaking.
-   * Useful for deciding whether to trigger fillers.
+   * Provider type for categorization.
    */
-  isSpeaking(): boolean;
+  type: ProviderType;
+}
+
+/**
+ * Base interface that all providers extend.
+ * Contains metadata for debugging and identification.
+ */
+export interface BaseProvider {
+  /**
+   * Provider metadata for debugging and identification.
+   */
+  readonly metadata: ProviderMetadata;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STT (Speech-to-Text) ADAPTER
+// STT (Speech-to-Text) PROVIDER
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Context provided to STT adapters.
- * Contains emit methods for reporting transcription events and control methods.
+ * Context provided to STT providers.
+ * Contains emit methods for reporting transcription events.
  */
-export interface STTContext extends OrchestrationContext {
+export interface STTContext {
+  /**
+   * Audio format configuration.
+   * STT providers should expect audio input in this format.
+   */
+  audioFormat: AudioFormat;
+
   /**
    * Report a transcript update.
    * @param text - The transcribed text
@@ -55,13 +78,13 @@ export interface STTContext extends OrchestrationContext {
 
   /**
    * Report that speech has started (VAD event).
-   * Used as fallback when no dedicated VAD adapter is provided.
+   * Used as fallback when no dedicated VAD provider is provided.
    */
   speechStart(): void;
 
   /**
    * Report that speech has ended (VAD event).
-   * Used as fallback when no dedicated VAD adapter is provided.
+   * Used as fallback when no dedicated VAD provider is provided.
    */
   speechEnd(): void;
 
@@ -72,16 +95,27 @@ export interface STTContext extends OrchestrationContext {
 
   /**
    * Abort signal for cancellation.
-   * Adapters should respect this signal and clean up when aborted.
+   * Providers should respect this signal and clean up when aborted.
    */
   signal: AbortSignal;
 }
 
 /**
- * Speech-to-Text adapter interface.
- * Users implement this to integrate their STT provider (Deepgram, AssemblyAI, etc.).
+ * Speech-to-Text provider interface.
+ * Provider packages implement this to integrate STT services.
+ *
+ * @example
+ * ```typescript
+ * import { createDeepgramSTT } from '@voice-ai/provider-deepgram';
+ *
+ * const stt = createDeepgramSTT({
+ *   apiKey: process.env.DEEPGRAM_API_KEY,
+ *   model: 'nova-2',
+ *   language: 'en-US',
+ * });
+ * ```
  */
-export interface STTAdapter {
+export interface STTProvider extends BaseProvider {
   /**
    * Start the STT session.
    * @param ctx - Context with emit methods and abort signal
@@ -101,14 +135,33 @@ export interface STTAdapter {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LLM (Language Model) ADAPTER
+// LLM (Language Model) PROVIDER
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Context provided to LLM adapters.
- * Contains emit methods for reporting generation events and control methods.
+ * Context provided to LLM providers.
+ * Contains emit methods for reporting generation events and orchestration controls.
+ * LLM providers can use orchestration methods to trigger filler phrases while generating.
  */
-export interface LLMContext extends OrchestrationContext {
+export interface LLMContext {
+  /**
+   * Trigger speech immediately (for fillers, acknowledgments, etc.).
+   * This will be synthesized and streamed while waiting for the main response.
+   * @param text - Text to speak
+   */
+  say(text: string): void;
+
+  /**
+   * Interrupt/stop current speech streaming.
+   * Use this when the main response arrives and a filler is still playing.
+   */
+  interrupt(): void;
+
+  /**
+   * Check if the agent is currently speaking.
+   * Useful for deciding whether to trigger fillers.
+   */
+  isSpeaking(): boolean;
   /**
    * Report a token from the stream.
    * @param token - The generated token
@@ -141,11 +194,22 @@ export interface LLMContext extends OrchestrationContext {
 }
 
 /**
- * Language Model adapter interface.
- * Users implement this to integrate their LLM provider (OpenAI, Anthropic, etc.).
- * System prompts, tools, and model selection are handled inside the adapter.
+ * Language Model provider interface.
+ * Provider packages implement this to integrate LLM services.
+ * System prompts, tools, and model selection are handled inside the provider.
+ *
+ * @example
+ * ```typescript
+ * import { createOpenAILLM } from '@voice-ai/provider-openai';
+ *
+ * const llm = createOpenAILLM({
+ *   apiKey: process.env.OPENAI_API_KEY,
+ *   model: 'gpt-4o',
+ *   systemPrompt: 'You are a helpful assistant.',
+ * });
+ * ```
  */
-export interface LLMAdapter {
+export interface LLMProvider extends BaseProvider {
   /**
    * Generate a response for the given messages.
    * @param messages - Conversation history
@@ -160,14 +224,20 @@ export interface LLMAdapter {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TTS (Text-to-Speech) ADAPTER
+// TTS (Text-to-Speech) PROVIDER
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Context provided to TTS adapters.
- * Contains emit methods for reporting synthesis events and control methods.
+ * Context provided to TTS providers.
+ * Contains emit methods for reporting synthesis events.
  */
-export interface TTSContext extends OrchestrationContext {
+export interface TTSContext {
+  /**
+   * Audio format configuration.
+   * TTS providers should produce audio output in this format.
+   */
+  audioFormat: AudioFormat;
+
   /**
    * Report an audio chunk (for streaming TTS).
    * @param audio - Audio samples
@@ -191,10 +261,20 @@ export interface TTSContext extends OrchestrationContext {
 }
 
 /**
- * Text-to-Speech adapter interface.
- * Users implement this to integrate their TTS provider (ElevenLabs, Cartesia, etc.).
+ * Text-to-Speech provider interface.
+ * Provider packages implement this to integrate TTS services.
+ *
+ * @example
+ * ```typescript
+ * import { createElevenLabsTTS } from '@voice-ai/provider-elevenlabs';
+ *
+ * const tts = createElevenLabsTTS({
+ *   apiKey: process.env.ELEVENLABS_API_KEY,
+ *   voiceId: 'rachel',
+ * });
+ * ```
  */
-export interface TTSAdapter {
+export interface TTSProvider extends BaseProvider {
   /**
    * Synthesize text to audio.
    * @param text - Text to synthesize
@@ -209,14 +289,14 @@ export interface TTSAdapter {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// VAD (Voice Activity Detection) ADAPTER - OPTIONAL
+// VAD (Voice Activity Detection) PROVIDER - OPTIONAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Context provided to VAD adapters.
- * Contains emit methods for reporting speech activity and control methods.
+ * Context provided to VAD providers.
+ * Contains emit methods for reporting speech activity.
  */
-export interface VADContext extends OrchestrationContext {
+export interface VADContext {
   /**
    * Report that speech has started.
    */
@@ -242,11 +322,21 @@ export interface VADContext extends OrchestrationContext {
 }
 
 /**
- * Voice Activity Detection adapter interface.
+ * Voice Activity Detection provider interface.
  * Optional - if not provided, STT's built-in VAD is used as fallback.
  * Useful for client-side VAD (like Silero) for faster barge-in detection.
+ *
+ * @example
+ * ```typescript
+ * import { createSileroVAD } from '@voice-ai/provider-silero';
+ *
+ * const vad = createSileroVAD({
+ *   threshold: 0.5,
+ *   minSpeechDuration: 250,
+ * });
+ * ```
  */
-export interface VADAdapter {
+export interface VADProvider extends BaseProvider {
   /**
    * Start VAD processing.
    * @param ctx - Context with emit methods
@@ -266,14 +356,14 @@ export interface VADAdapter {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TURN DETECTOR ADAPTER - OPTIONAL
+// TURN DETECTOR PROVIDER - OPTIONAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Context provided to Turn Detector adapters.
- * Contains emit methods for reporting turn boundaries and control methods.
+ * Context provided to Turn Detector providers.
+ * Contains emit methods for reporting turn boundaries.
  */
-export interface TurnDetectorContext extends OrchestrationContext {
+export interface TurnDetectorContext {
   /**
    * Report that the user's turn has ended.
    * @param transcript - The complete transcript for this turn
@@ -293,11 +383,20 @@ export interface TurnDetectorContext extends OrchestrationContext {
 }
 
 /**
- * Turn Detector adapter interface.
+ * Turn Detector provider interface.
  * Optional - if not provided, STT's final transcript marks turn end.
  * Useful for semantic turn detection (e.g., detecting questions end faster).
+ *
+ * @example
+ * ```typescript
+ * import { createSemanticTurnDetector } from '@voice-ai/provider-turn-detector';
+ *
+ * const turnDetector = createSemanticTurnDetector({
+ *   silenceThresholdMs: 500,
+ * });
+ * ```
  */
-export interface TurnDetectorAdapter {
+export interface TurnDetectorProvider extends BaseProvider {
   /**
    * Start turn detection.
    * @param ctx - Context with emit methods
@@ -321,52 +420,4 @@ export interface TurnDetectorAdapter {
    * @param isFinal - Whether this is a final transcript
    */
   onTranscript(text: string, isFinal: boolean): void;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// AUDIO OUTPUT ADAPTER
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Context provided to Audio Streamer adapters.
- * Contains emit methods for reporting streaming events and control methods.
- */
-export interface AudioStreamerContext extends OrchestrationContext {
-  /**
-   * Report that streaming of all queued audio is complete.
-   */
-  streamEnd(): void;
-
-  /**
-   * Report an error.
-   */
-  error(error: Error): void;
-
-  /**
-   * Abort signal for cancellation.
-   */
-  signal: AbortSignal;
-}
-
-/**
- * Audio Streamer adapter interface.
- * Users implement this to handle audio streaming (Web Audio API, node speaker, etc.).
- */
-export interface AudioStreamerAdapter {
-  /**
-   * Start the audio output.
-   * @param ctx - Context with emit methods
-   */
-  start(ctx: AudioStreamerContext): void;
-
-  /**
-   * Stream audio data.
-   * @param audio - Audio samples to stream
-   */
-  stream(audio: Float32Array): void;
-
-  /**
-   * Stop all streaming immediately.
-   */
-  stop(): void;
 }

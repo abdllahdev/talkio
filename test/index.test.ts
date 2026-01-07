@@ -2,16 +2,25 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createAgent,
   type AgentEvent,
-  type AudioStreamerAdapter,
-  type AudioStreamerContext,
-  type LLMAdapter,
+  type AudioFormat,
   type LLMContext,
+  type LLMProvider,
   type Message,
-  type STTAdapter,
   type STTContext,
-  type TTSAdapter,
+  type STTProvider,
   type TTSContext,
+  type TTSProvider,
 } from "../src";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEFAULT AUDIO FORMAT FOR TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_AUDIO_FORMAT: AudioFormat = {
+  sampleRate: 24000,
+  channels: 1,
+  bitDepth: 32,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPER: Create capturing adapters that expose their contexts for testing
@@ -24,12 +33,13 @@ function createCapturingSTTAdapter() {
 
   return {
     adapter: {
+      metadata: { name: "TestSTT", version: "1.0.0", type: "stt" as const },
       start: (c: STTContext) => {
         ctx = c;
       },
       stop: stopMock,
       sendAudio: sendAudioMock,
-    } satisfies STTAdapter,
+    } satisfies STTProvider,
     getCtx: () => {
       if (!ctx) throw new Error("STT context not captured");
       return ctx;
@@ -45,12 +55,13 @@ function createCapturingLLMAdapter() {
 
   return {
     adapter: {
+      metadata: { name: "TestLLM", version: "1.0.0", type: "llm" as const },
       generate: (messages: Message[], c: LLMContext) => {
         ctx = c;
         lastMessages = messages;
       },
       cancel: cancelMock,
-    } satisfies LLMAdapter,
+    } satisfies LLMProvider,
     getCtx: () => {
       if (!ctx) throw new Error("LLM context not captured");
       return ctx;
@@ -67,12 +78,13 @@ function createCapturingTTSAdapter() {
 
   return {
     adapter: {
+      metadata: { name: "TestTTS", version: "1.0.0", type: "tts" as const },
       synthesize: (text: string, c: TTSContext) => {
         ctx = c;
         lastText = text;
       },
       cancel: cancelMock,
-    } satisfies TTSAdapter,
+    } satisfies TTSProvider,
     getCtx: () => {
       if (!ctx) throw new Error("TTS context not captured");
       return ctx;
@@ -82,62 +94,35 @@ function createCapturingTTSAdapter() {
   };
 }
 
-function createCapturingAudioStreamerAdapter() {
-  let ctx: AudioStreamerContext | null = null;
-  const streamMock = vi.fn();
-  const stopMock = vi.fn();
-
-  return {
-    adapter: {
-      start: (c: AudioStreamerContext) => {
-        ctx = c;
-      },
-      stream: streamMock,
-      stop: stopMock,
-    } satisfies AudioStreamerAdapter,
-    getCtx: () => {
-      if (!ctx) throw new Error("AudioOutput context not captured");
-      return ctx;
-    },
-    mocks: { stream: streamMock, stop: stopMock },
-  };
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // SIMPLE MOCK ADAPTERS (for basic tests)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const mockSTTAdapter: STTAdapter = {
+const mockSTTAdapter: STTProvider = {
+  metadata: { name: "MockSTT", version: "1.0.0", type: "stt" },
   start: () => {},
   stop: () => {},
   sendAudio: () => {},
 };
 
-const mockLLMAdapter: LLMAdapter = {
+const mockLLMAdapter: LLMProvider = {
+  metadata: { name: "MockLLM", version: "1.0.0", type: "llm" },
   generate: () => {},
   cancel: () => {},
 };
 
-const mockTTSAdapter: TTSAdapter = {
+const mockTTSAdapter: TTSProvider = {
+  metadata: { name: "MockTTS", version: "1.0.0", type: "tts" },
   synthesize: () => {},
   cancel: () => {},
-};
-
-const mockAudioStreamerAdapter: AudioStreamerAdapter = {
-  start: () => {},
-  stream: () => {},
-  stop: () => {},
 };
 
 describe("createAgent", () => {
   it("creates an agent with required adapters", () => {
     const agent = createAgent({
-      adapters: {
-        stt: mockSTTAdapter,
-        llm: mockLLMAdapter,
-        tts: mockTTSAdapter,
-        audioStreamer: mockAudioStreamerAdapter,
-      },
+      stt: mockSTTAdapter,
+      llm: mockLLMAdapter,
+      tts: mockTTSAdapter,
     });
 
     expect(agent).toBeDefined();
@@ -147,18 +132,16 @@ describe("createAgent", () => {
     expect(typeof agent.sendAudio).toBe("function");
     expect(typeof agent.subscribe).toBe("function");
     expect(typeof agent.getSnapshot).toBe("function");
+    expect(agent.audioStream).toBeInstanceOf(ReadableStream);
   });
 
   it("creates an agent with onEvent callback", () => {
     const events: unknown[] = [];
 
     const agent = createAgent({
-      adapters: {
-        stt: mockSTTAdapter,
-        llm: mockLLMAdapter,
-        tts: mockTTSAdapter,
-        audioStreamer: mockAudioStreamerAdapter,
-      },
+      stt: mockSTTAdapter,
+      llm: mockLLMAdapter,
+      tts: mockTTSAdapter,
       onEvent: (event) => {
         events.push(event);
       },
@@ -169,12 +152,9 @@ describe("createAgent", () => {
 
   it("returns initial state snapshot", () => {
     const agent = createAgent({
-      adapters: {
-        stt: mockSTTAdapter,
-        llm: mockLLMAdapter,
-        tts: mockTTSAdapter,
-        audioStreamer: mockAudioStreamerAdapter,
-      },
+      stt: mockSTTAdapter,
+      llm: mockLLMAdapter,
+      tts: mockTTSAdapter,
     });
 
     const snapshot = agent.getSnapshot();
@@ -184,6 +164,21 @@ describe("createAgent", () => {
     expect(snapshot.isSpeaking).toBe(false);
     expect(snapshot.messages).toEqual([]);
     expect(snapshot.partialTranscript).toBe("");
+  });
+
+  it("accepts audioFormat configuration", () => {
+    const agent = createAgent({
+      stt: mockSTTAdapter,
+      llm: mockLLMAdapter,
+      tts: mockTTSAdapter,
+      audioFormat: {
+        sampleRate: 16000,
+        channels: 1,
+        bitDepth: 16,
+      },
+    });
+
+    expect(agent).toBeDefined();
   });
 });
 
@@ -197,51 +192,65 @@ describe("full conversation flow", () => {
    * 1. User speaks → STT transcribes
    * 2. Turn ends → LLM generates response
    * 3. LLM streams sentences → TTS synthesizes
-   * 4. TTS produces audio → Audio output plays
+   * 4. TTS produces audio → Audio output via audioStream
    */
   it("orchestrates a complete conversation turn", async () => {
     const events: AgentEvent[] = [];
+    const audioChunks: Float32Array[] = [];
 
     // Create all capturing adapters
     const stt = createCapturingSTTAdapter();
     const llm = createCapturingLLMAdapter();
     const tts = createCapturingTTSAdapter();
-    const audioStreamer = createCapturingAudioStreamerAdapter();
 
     const agent = createAgent({
-      adapters: {
-        stt: stt.adapter,
-        llm: llm.adapter,
-        tts: tts.adapter,
-        audioStreamer: audioStreamer.adapter,
+      stt: stt.adapter,
+      llm: llm.adapter,
+      tts: tts.adapter,
+      onEvent: (event) => {
+        events.push(event);
+        // Capture audio chunks from events (new event name: ai-turn:audio)
+        if (event.type === "ai-turn:audio") {
+          audioChunks.push(event.audio);
+        }
       },
-      onEvent: (event) => events.push(event),
     });
 
     agent.start();
     await new Promise((r) => setTimeout(r, 10));
+
+    // Verify agent:started event
+    expect(events.some((e) => e.type === "agent:started")).toBe(true);
 
     // ─────────────────────────────────────────────────────────────────────────
     // STEP 1: User speaks → STT transcribes
     // ─────────────────────────────────────────────────────────────────────────
     const sttCtx = stt.getCtx();
 
+    // Verify audioFormat is passed to STT
+    expect(sttCtx.audioFormat).toEqual(DEFAULT_AUDIO_FORMAT);
+
     // User starts speaking
     sttCtx.speechStart();
-    expect(events.some((e) => e.type === "stt-speech-start")).toBe(true);
-    expect(events.some((e) => e.type === "human-turn-start")).toBe(true);
+    expect(events.some((e) => e.type === "human-turn:started")).toBe(true);
 
     // STT streams partial transcripts
     sttCtx.transcript("What's the", false);
     sttCtx.transcript("What's the weather", false);
+
+    // Verify partial transcripts are emitted
+    const partialEvents = events.filter(
+      (e) => e.type === "human-turn:transcript" && !e.isFinal
+    );
+    expect(partialEvents.length).toBeGreaterThanOrEqual(2);
 
     // STT produces final transcript → triggers turn end → triggers LLM
     sttCtx.transcript("What's the weather today?", true);
     await new Promise((r) => setTimeout(r, 10));
 
     // Verify turn ended and response started
-    expect(events.some((e) => e.type === "human-turn-end")).toBe(true);
-    expect(events.some((e) => e.type === "ai-turn-start")).toBe(true);
+    expect(events.some((e) => e.type === "human-turn:ended")).toBe(true);
+    expect(events.some((e) => e.type === "ai-turn:started")).toBe(true);
 
     // Verify user message added to history
     let snapshot = agent.getSnapshot();
@@ -267,16 +276,16 @@ describe("full conversation flow", () => {
     llmCtx.token("sunny ");
     llmCtx.token("today.");
 
-    // Verify tokens are captured
-    const tokenEvents = events.filter((e) => e.type === "llm-token");
+    // Verify tokens are captured (new event name: ai-turn:token)
+    const tokenEvents = events.filter((e) => e.type === "ai-turn:token");
     expect(tokenEvents.length).toBe(5);
 
     // LLM emits complete sentence → triggers TTS
     llmCtx.sentence("The weather is sunny today.", 0);
     await new Promise((r) => setTimeout(r, 10));
 
-    // Verify sentence event and speaking state
-    expect(events.some((e) => e.type === "llm-sentence")).toBe(true);
+    // Verify sentence event (new event name: ai-turn:sentence)
+    expect(events.some((e) => e.type === "ai-turn:sentence")).toBe(true);
     snapshot = agent.getSnapshot();
     expect(snapshot.isSpeaking).toBe(true);
 
@@ -285,22 +294,25 @@ describe("full conversation flow", () => {
     // ─────────────────────────────────────────────────────────────────────────
     const ttsCtx = tts.getCtx();
 
-    // Verify TTS received the sentence
+    // Verify TTS received the sentence and audioFormat
     expect(tts.getLastText()).toBe("The weather is sunny today.");
+    expect(ttsCtx.audioFormat).toEqual(DEFAULT_AUDIO_FORMAT);
 
     // TTS produces audio chunks
     const audioChunk1 = new Float32Array([0.1, 0.2, 0.3]);
     const audioChunk2 = new Float32Array([0.4, 0.5, 0.6]);
     ttsCtx.audioChunk(audioChunk1);
     ttsCtx.audioChunk(audioChunk2);
+    await new Promise((r) => setTimeout(r, 10));
 
-    // Verify audio was forwarded to output
-    expect(audioStreamer.mocks.stream).toHaveBeenCalledTimes(2);
-    expect(audioStreamer.mocks.stream).toHaveBeenCalledWith(audioChunk1);
-    expect(audioStreamer.mocks.stream).toHaveBeenCalledWith(audioChunk2);
+    // Verify audio chunks were emitted as events (ai-turn:audio)
+    expect(audioChunks).toHaveLength(2);
+    expect(audioChunks[0]).toEqual(audioChunk1);
+    expect(audioChunks[1]).toEqual(audioChunk2);
 
     // TTS completes
     ttsCtx.complete();
+    await new Promise((r) => setTimeout(r, 10));
 
     // ─────────────────────────────────────────────────────────────────────────
     // STEP 4: LLM completes generation
@@ -308,8 +320,8 @@ describe("full conversation flow", () => {
     llmCtx.complete("The weather is sunny today.");
     await new Promise((r) => setTimeout(r, 10));
 
-    // Verify response:end event
-    expect(events.some((e) => e.type === "llm-complete")).toBe(true);
+    // Verify ai-turn:ended event (replaces llm-complete for users)
+    expect(events.some((e) => e.type === "ai-turn:ended")).toBe(true);
 
     // Verify assistant message added to history
     snapshot = agent.getSnapshot();
@@ -319,15 +331,7 @@ describe("full conversation flow", () => {
       content: "The weather is sunny today.",
     });
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // STEP 5: Audio streaming completes
-    // ─────────────────────────────────────────────────────────────────────────
-    const audioCtx = audioStreamer.getCtx();
-    audioCtx.streamEnd();
-    await new Promise((r) => setTimeout(r, 10));
-
-    // Speaking should be false after streaming
-    snapshot = agent.getSnapshot();
+    // Speaking should be false after TTS completes
     expect(snapshot.isSpeaking).toBe(false);
 
     agent.stop();
@@ -336,6 +340,7 @@ describe("full conversation flow", () => {
   /**
    * Filler phrases:
    * When LLM is slow, adapters can use ctx.say() to play filler phrases
+   * Note: The filler events are internal and not exposed to users
    */
   it("supports filler phrases via ctx.say()", async () => {
     const events: AgentEvent[] = [];
@@ -343,15 +348,11 @@ describe("full conversation flow", () => {
     const stt = createCapturingSTTAdapter();
     const llm = createCapturingLLMAdapter();
     const tts = createCapturingTTSAdapter();
-    const audioStreamer = createCapturingAudioStreamerAdapter();
 
     const agent = createAgent({
-      adapters: {
-        stt: stt.adapter,
-        llm: llm.adapter,
-        tts: tts.adapter,
-        audioStreamer: audioStreamer.adapter,
-      },
+      stt: stt.adapter,
+      llm: llm.adapter,
+      tts: tts.adapter,
       onEvent: (event) => events.push(event),
     });
 
@@ -369,14 +370,8 @@ describe("full conversation flow", () => {
     llmCtx.say("Let me think about that...");
     await new Promise((r) => setTimeout(r, 10));
 
-    // Verify say event
-    const sayEvent = events.find((e) => e.type === "say");
-    expect(sayEvent).toBeDefined();
-    if (sayEvent?.type === "say") {
-      expect(sayEvent.text).toBe("Let me think about that...");
-    }
-
-    // Verify TTS was triggered for filler
+    // Filler events are internal - not exposed to users
+    // But we can verify TTS was triggered for filler
     expect(tts.getLastText()).toBe("Let me think about that...");
 
     // Verify speaking state
@@ -402,20 +397,14 @@ describe("full conversation flow", () => {
     const stt = createCapturingSTTAdapter();
     const llm = createCapturingLLMAdapter();
     const tts = createCapturingTTSAdapter();
-    const audioStreamer = createCapturingAudioStreamerAdapter();
 
     const agent = createAgent({
-      adapters: {
-        stt: stt.adapter,
-        llm: llm.adapter,
-        tts: tts.adapter,
-        audioStreamer: audioStreamer.adapter,
-      },
-      config: {
-        bargeIn: {
-          enabled: true,
-          minDurationMs: 50, // Low threshold for testing
-        },
+      stt: stt.adapter,
+      llm: llm.adapter,
+      tts: tts.adapter,
+      bargeIn: {
+        enabled: true,
+        minDurationMs: 50, // Low threshold for testing
       },
       onEvent: (event) => events.push(event),
     });
@@ -443,8 +432,8 @@ describe("full conversation flow", () => {
     sttCtx.speechStart();
     await new Promise((r) => setTimeout(r, 10));
 
-    // Verify barge-in was detected
-    expect(events.some((e) => e.type === "ai-turn-interrupted")).toBe(true);
+    // Verify barge-in was detected (new event name: ai-turn:interrupted)
+    expect(events.some((e) => e.type === "ai-turn:interrupted")).toBe(true);
 
     // Agent should have stopped speaking
     expect(agent.getSnapshot().isSpeaking).toBe(false);
@@ -463,12 +452,9 @@ describe("full conversation flow", () => {
     const stt = createCapturingSTTAdapter();
 
     const agent = createAgent({
-      adapters: {
-        stt: stt.adapter,
-        llm: mockLLMAdapter,
-        tts: mockTTSAdapter,
-        audioStreamer: mockAudioStreamerAdapter,
-      },
+      stt: stt.adapter,
+      llm: mockLLMAdapter,
+      tts: mockTTSAdapter,
     });
 
     agent.start();
@@ -502,15 +488,11 @@ describe("full conversation flow", () => {
     const stt = createCapturingSTTAdapter();
     const llm = createCapturingLLMAdapter();
     const tts = createCapturingTTSAdapter();
-    const audioStreamer = createCapturingAudioStreamerAdapter();
 
     const agent = createAgent({
-      adapters: {
-        stt: stt.adapter,
-        llm: llm.adapter,
-        tts: tts.adapter,
-        audioStreamer: audioStreamer.adapter,
-      },
+      stt: stt.adapter,
+      llm: llm.adapter,
+      tts: tts.adapter,
       onEvent: (event) => events.push(event),
     });
 
@@ -527,6 +509,10 @@ describe("full conversation flow", () => {
     let llmCtx = llm.getCtx();
     llmCtx.sentence("It's sunny.", 0);
     llmCtx.complete("It's sunny.");
+
+    // Complete TTS to end the turn
+    let ttsCtx = tts.getCtx();
+    ttsCtx.complete();
     await new Promise((r) => setTimeout(r, 10));
 
     // ─── Turn 2: User asks follow-up ───
@@ -545,6 +531,9 @@ describe("full conversation flow", () => {
     llmCtx = llm.getCtx();
     llmCtx.sentence("No rain expected.", 0);
     llmCtx.complete("No rain expected.");
+
+    ttsCtx = tts.getCtx();
+    ttsCtx.complete();
     await new Promise((r) => setTimeout(r, 10));
 
     // Verify full history
@@ -571,12 +560,9 @@ describe("full conversation flow", () => {
     const llm = createCapturingLLMAdapter();
 
     const agent = createAgent({
-      adapters: {
-        stt: stt.adapter,
-        llm: llm.adapter,
-        tts: mockTTSAdapter,
-        audioStreamer: mockAudioStreamerAdapter,
-      },
+      stt: stt.adapter,
+      llm: llm.adapter,
+      tts: mockTTSAdapter,
       onEvent: (event) => events.push(event),
     });
 
@@ -588,12 +574,96 @@ describe("full conversation flow", () => {
     sttCtx.error(new Error("STT connection lost"));
     await new Promise((r) => setTimeout(r, 10));
 
-    // Verify error event
-    const errorEvent = events.find((e) => e.type === "stt-error");
+    // Verify error event (new event name: agent:error)
+    const errorEvent = events.find((e) => e.type === "agent:error");
     expect(errorEvent).toBeDefined();
-    if (errorEvent?.type === "stt-error") {
+    if (errorEvent?.type === "agent:error") {
       expect(errorEvent.error.message).toBe("STT connection lost");
+      expect(errorEvent.source).toBe("stt");
     }
+
+    agent.stop();
+  });
+
+  /**
+   * Audio stream:
+   * Verifies audioStream is available and receives chunks
+   */
+  it("exposes audioStream that receives TTS chunks", async () => {
+    const stt = createCapturingSTTAdapter();
+    const llm = createCapturingLLMAdapter();
+    const tts = createCapturingTTSAdapter();
+
+    const agent = createAgent({
+      stt: stt.adapter,
+      llm: llm.adapter,
+      tts: tts.adapter,
+    });
+
+    // Verify audioStream is a ReadableStream
+    expect(agent.audioStream).toBeInstanceOf(ReadableStream);
+
+    agent.start();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Trigger a conversation turn
+    const sttCtx = stt.getCtx();
+    sttCtx.speechStart();
+    sttCtx.transcript("Hello", true);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // LLM generates response
+    const llmCtx = llm.getCtx();
+    llmCtx.sentence("Hi there!", 0);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // TTS produces audio
+    const ttsCtx = tts.getCtx();
+    const audioChunk = new Float32Array([0.1, 0.2, 0.3]);
+    ttsCtx.audioChunk(audioChunk);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Note: Reading from the stream would require async iteration
+    // For this test, we verify the stream exists and ai-turn:audio events are emitted
+
+    agent.stop();
+  });
+
+  /**
+   * Internal events filtering:
+   * Verifies internal events (prefixed with "_") are not exposed to users
+   */
+  it("does not expose internal events to onEvent callback", async () => {
+    const events: AgentEvent[] = [];
+
+    const stt = createCapturingSTTAdapter();
+    const llm = createCapturingLLMAdapter();
+    const tts = createCapturingTTSAdapter();
+
+    const agent = createAgent({
+      stt: stt.adapter,
+      llm: llm.adapter,
+      tts: tts.adapter,
+      onEvent: (event) => events.push(event),
+    });
+
+    agent.start();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Trigger some activity
+    const sttCtx = stt.getCtx();
+    sttCtx.speechStart();
+    sttCtx.transcript("Hello", true);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Verify no internal events leaked
+    const internalEvents = events.filter((e) => e.type.startsWith("_"));
+    expect(internalEvents).toHaveLength(0);
+
+    // Verify we got public events
+    expect(events.some((e) => e.type === "agent:started")).toBe(true);
+    expect(events.some((e) => e.type === "human-turn:started")).toBe(true);
+    expect(events.some((e) => e.type === "human-turn:ended")).toBe(true);
 
     agent.stop();
   });

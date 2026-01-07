@@ -13,6 +13,7 @@ A TypeScript package for building voice AI agents with full orchestration. Provi
 - **Provider Agnostic**: Works with any STT, LLM, or TTS provider
 - **Type-Safe**: Full TypeScript support with discriminated unions
 - **Event-Driven**: Simple `onEvent` callback for observability
+- **Two-Layer Events**: Clean semantic events for users, internal events hidden
 - **Filler Support**: Adapters can trigger fillers via `ctx.say()` for latency hiding
 - **Multimodal Messages**: Support for text, audio, images, files, and tool calls
 
@@ -31,29 +32,25 @@ pnpm add voice-ai
 ## Quick Start
 
 ```typescript
-import { createAgent } from 'voice-ai';
-import { createDeepgramSTT } from './adapters/deepgram';
-import { createOpenAILLM } from './adapters/openai';
-import { createElevenLabsTTS } from './adapters/elevenlabs';
-import { createWebAudioOutput } from './adapters/web-audio';
+import { createAgent } from "voice-ai";
+import { createDeepgramSTT } from "./adapters/deepgram";
+import { createOpenAILLM } from "./adapters/openai";
+import { createElevenLabsTTS } from "./adapters/elevenlabs";
 
 const agent = createAgent({
-  adapters: {
-    stt: createDeepgramSTT(process.env.DEEPGRAM_KEY!),
-    llm: createOpenAILLM({ systemPrompt: 'You are a helpful assistant.' }),
-    tts: createElevenLabsTTS(process.env.ELEVEN_KEY!),
-    audioOutput: createWebAudioOutput(),
-  },
+  stt: createDeepgramSTT(process.env.DEEPGRAM_KEY!),
+  llm: createOpenAILLM({ systemPrompt: "You are a helpful assistant." }),
+  tts: createElevenLabsTTS(process.env.ELEVEN_KEY!),
   onEvent: (event) => {
     switch (event.type) {
-      case 'turn-end':
-        console.log('User said:', event.transcript);
+      case "human-turn:ended":
+        console.log("User said:", event.transcript);
         break;
-      case 'llm-sentence':
-        console.log('Agent:', event.sentence);
+      case "ai-turn:sentence":
+        console.log("Agent:", event.sentence);
         break;
-      case 'ai-turn-interrupted':
-        console.log('User interrupted!');
+      case "ai-turn:interrupted":
+        console.log("User interrupted!");
         break;
     }
   },
@@ -77,6 +74,7 @@ agent.stop();
 2. **XState Under the Hood**: Uses XState's actor model internally (users never see it)
 3. **Adapter Pattern**: Users provide simple adapter objects that conform to interfaces
 4. **Provider Agnostic**: Works with any STT/LLM/TTS provider
+5. **Two-Layer Events**: Internal events are filtered out—users only see clean semantic events
 
 ### Flow
 
@@ -113,8 +111,8 @@ interface STTAdapter {
 
 interface STTContext {
   transcript(text: string, isFinal: boolean): void;
-  speechStart(): void;  // Optional: fallback VAD
-  speechEnd(): void;    // Optional: fallback VAD
+  speechStart(): void; // Optional: fallback VAD
+  speechEnd(): void; // Optional: fallback VAD
   error(error: Error): void;
   signal: AbortSignal;
 }
@@ -133,8 +131,8 @@ interface LLMContext {
   sentence(sentence: string, index: number): void;
   complete(fullText: string): void;
   error(error: Error): void;
-  say(text: string): void;      // Trigger filler
-  interrupt(): void;            // Interrupt audio streaming
+  say(text: string): void; // Trigger filler
+  interrupt(): void; // Interrupt audio streaming
   isSpeaking(): boolean;
   signal: AbortSignal;
 }
@@ -156,22 +154,6 @@ interface TTSContext {
 }
 ```
 
-### Audio Output Adapter (Required)
-
-```typescript
-interface AudioOutputAdapter {
-  start(ctx: AudioOutputContext): void;
-  play(audio: Float32Array): void;
-  stop(): void;
-}
-
-interface AudioOutputContext {
-  streamEnd(): void;
-  error(error: Error): void;
-  signal: AbortSignal;
-}
-```
-
 ### VAD Adapter (Optional)
 
 If not provided, STT's built-in VAD is used as fallback.
@@ -186,7 +168,7 @@ interface VADAdapter {
 interface VADContext {
   speechStart(): void;
   speechEnd(duration: number): void;
-  speechProbability(probability: number): void;  // For visualization
+  speechProbability(probability: number): void; // For visualization
   signal: AbortSignal;
 }
 ```
@@ -218,8 +200,12 @@ Creates a voice agent instance.
 
 **Parameters:**
 
-- `config.adapters` - Required adapters (stt, llm, tts, audioOutput) and optional (vad, turnDetector)
-- `config.config.bargeIn` - Barge-in configuration
+- `config.stt` - Required STT provider
+- `config.llm` - Required LLM provider
+- `config.tts` - Required TTS provider
+- `config.vad` - Optional VAD provider (falls back to STT VAD)
+- `config.turnDetector` - Optional turn detector provider
+- `config.bargeIn` - Barge-in configuration
   - `enabled?: boolean` (default: `true`)
   - `minDurationMs?: number` (default: `200`)
 - `config.onEvent?: (event: AgentEvent) => void` - Event handler callback
@@ -231,6 +217,7 @@ Creates a voice agent instance.
 ```typescript
 interface Agent {
   readonly id: string;
+  readonly audioStream: ReadableStream<Float32Array>;
   start(): void;
   sendAudio(audio: Float32Array): void;
   stop(): void;
@@ -259,68 +246,70 @@ interface AgentState {
   partialTranscript: string;
 
   /** Actor status: 'active', 'done', 'error', or 'stopped' */
-  status: 'active' | 'done' | 'error' | 'stopped';
+  status: "active" | "done" | "error" | "stopped";
 
   /** Output when agent is done (status === 'done') */
   output: AgentMachineOutput | undefined;
 }
 ```
 
+## Events
+
+The event system uses a **two-layer architecture**:
+
+- **Public events**: Semantic, user-friendly events exposed via `onEvent` callback
+- **Internal events**: Machine-only events (prefixed with `_`) that are automatically filtered out
+
 ### Events
 
-All events use a discriminated union pattern with kebab-case for type-safe handling:
+All public events use colon-separated naming with discriminated unions for type-safe handling:
 
 ```typescript
 type AgentEvent =
-  // STT events
-  | { type: 'stt-transcript-partial'; text: string }
-  | { type: 'stt-transcript-final'; text: string }
-  | { type: 'stt-speech-start' }
-  | { type: 'stt-speech-end' }
-  | { type: 'stt-error'; error: Error }
-
-  // LLM events
-  | { type: 'llm-token'; token: string }
-  | { type: 'llm-sentence'; sentence: string; index: number }
-  | { type: 'llm-complete'; fullText: string }
-  | { type: 'llm-error'; error: Error }
-
-  // TTS events
-  | { type: 'tts-chunk'; audio: Float32Array }
-  | { type: 'tts-complete' }
-  | { type: 'tts-error'; error: Error }
-
-  // VAD events
-  | { type: 'vad-speech-start' }
-  | { type: 'vad-speech-end'; duration: number }
-  | { type: 'vad-probability'; value: number }
-
-  // Turn detector events
-  | { type: 'turn-end'; transcript: string }
-  | { type: 'turn-abandoned'; reason: string }
-
-  // Audio events
-  | { type: 'audio-input-chunk'; audio: Float32Array }
-  | { type: 'audio-output-start' }
-  | { type: 'audio-output-play'; audio: Float32Array }
-  | { type: 'audio-output-end' }
-  | { type: 'audio-output-error'; error: Error }
+  // Agent lifecycle
+  | { type: "agent:started" }
+  | { type: "agent:stopped" }
+  | { type: "agent:error"; error: Error; source: "stt" | "llm" | "tts" | "vad" }
 
   // Human turn events
-  | { type: 'human-turn-start' }
-  | { type: 'human-turn-end'; transcript: string }
+  | { type: "human-turn:started" }
+  | { type: "human-turn:transcript"; text: string; isFinal: boolean }
+  | { type: "human-turn:ended"; transcript: string }
+  | { type: "human-turn:abandoned"; reason: string }
 
   // AI turn events
-  | { type: 'ai-turn-start' }
-  | { type: 'ai-turn-end' }
-  | { type: 'ai-turn-interrupted' }
+  | { type: "ai-turn:started" }
+  | { type: "ai-turn:token"; token: string }
+  | { type: "ai-turn:sentence"; sentence: string; index: number }
+  | { type: "ai-turn:audio"; audio: Float32Array }
+  | { type: "ai-turn:ended"; text: string; wasSpoken: boolean }
+  | { type: "ai-turn:interrupted"; partialText: string }
 
-  // Control events
-  | { type: 'agent-start' }
-  | { type: 'agent-stop' }
-  | { type: 'say'; text: string }
-  | { type: 'agent-interrupt' };
+  // Debug events
+  | { type: "vad:probability"; value: number };
 ```
+
+### Event Categories
+
+| Category            | Events                                                                                                          | Description              |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Agent Lifecycle** | `agent:started`, `agent:stopped`, `agent:error`                                                                 | Agent state changes      |
+| **Human Turn**      | `human-turn:started`, `human-turn:transcript`, `human-turn:ended`, `human-turn:abandoned`                       | User speech lifecycle    |
+| **AI Turn**         | `ai-turn:started`, `ai-turn:token`, `ai-turn:sentence`, `ai-turn:audio`, `ai-turn:ended`, `ai-turn:interrupted` | Agent response lifecycle |
+| **Debug**           | `vad:probability`                                                                                               | Optional observability   |
+
+### Key Differences from Raw Provider Events
+
+The public events abstract away implementation details:
+
+| What You See            | What's Hidden                              |
+| ----------------------- | ------------------------------------------ |
+| `human-turn:started`    | `_stt:speech-start` or `_vad:speech-start` |
+| `human-turn:transcript` | `_stt:transcript`                          |
+| `human-turn:ended`      | `_turn:end` or `_stt:transcript` (final)   |
+| `ai-turn:audio`         | `_tts:chunk` (no duplicate events)         |
+| `ai-turn:ended`         | `_tts:complete` or `_llm:complete`         |
+| `agent:error`           | `_stt:error`, `_llm:error`, `_tts:error`   |
 
 ## Message Types
 
@@ -334,11 +323,11 @@ type MessageContent = string | ContentPart[];
 
 // Available content part types
 type ContentPart =
-  | TextPart        // { type: 'text'; text: string }
-  | AudioPart       // { type: 'audio'; data: string; mediaType: string; transcript?: string }
-  | ImagePart       // { type: 'image'; data: string; mediaType: string }
-  | FilePart        // { type: 'file'; data: string; mediaType: string; filename?: string }
-  | ToolCallPart    // { type: 'tool-call'; toolCallId: string; toolName: string; args: Record<string, unknown> }
+  | TextPart // { type: 'text'; text: string }
+  | AudioPart // { type: 'audio'; data: string; mediaType: string; transcript?: string }
+  | ImagePart // { type: 'image'; data: string; mediaType: string }
+  | FilePart // { type: 'file'; data: string; mediaType: string; filename?: string }
+  | ToolCallPart // { type: 'tool-call'; toolCallId: string; toolName: string; args: Record<string, unknown> }
   | ToolResultPart; // { type: 'tool-result'; toolCallId: string; toolName: string; result: unknown; isError?: boolean }
 ```
 
@@ -347,16 +336,18 @@ type ContentPart =
 ### Example: Deepgram STT Adapter
 
 ```typescript
-import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
-import type { STTAdapter, STTContext } from 'voice-ai';
+import { createClient, LiveTranscriptionEvents } from "@deepgram/sdk";
+import type { STTAdapter, STTContext } from "voice-ai";
 
 export function createDeepgramSTT(apiKey: string): STTAdapter {
   let connection: any = null;
 
   return {
+    metadata: { name: "Deepgram", version: "1.0.0", type: "stt" },
+
     start(ctx: STTContext) {
       const client = createClient(apiKey);
-      connection = client.listen.live({ model: 'nova-2' });
+      connection = client.listen.live({ model: "nova-2" });
 
       connection.on(LiveTranscriptionEvents.Transcript, (data) => {
         const text = data.channel.alternatives[0].transcript;
@@ -386,39 +377,38 @@ export function createDeepgramSTT(apiKey: string): STTAdapter {
 ### Example: OpenAI LLM Adapter with Filler Support
 
 ```typescript
-import { streamText } from 'ai';
-import { openai } from '@ai-sdk/openai';
-import type { LLMAdapter, LLMContext, Message } from 'voice-ai';
+import { streamText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import type { LLMAdapter, LLMContext, Message } from "voice-ai";
 
 export function createOpenAILLM(systemPrompt: string): LLMAdapter {
   let abortController: AbortController | null = null;
 
   return {
+    metadata: { name: "OpenAI", version: "1.0.0", type: "llm" },
+
     async generate(messages: Message[], ctx: LLMContext) {
       abortController = new AbortController();
 
-      const fullMessages = [
-        { role: 'system' as const, content: systemPrompt },
-        ...messages,
-      ];
+      const fullMessages = [{ role: "system" as const, content: systemPrompt }, ...messages];
 
       let firstToken = false;
 
       // Trigger filler after 300ms of no tokens
       const fillerTimeout = setTimeout(() => {
         if (!firstToken) {
-          ctx.say('Let me think...');
+          ctx.say("Let me think...");
         }
       }, 300);
 
       try {
         const result = streamText({
-          model: openai('gpt-4o'),
+          model: openai("gpt-4o"),
           messages: fullMessages,
           abortSignal: AbortSignal.any([abortController.signal, ctx.signal]),
         });
 
-        let buffer = '';
+        let buffer = "";
         let sentenceIndex = 0;
 
         for await (const chunk of result.textStream) {
@@ -445,7 +435,7 @@ export function createOpenAILLM(systemPrompt: string): LLMAdapter {
 
         ctx.complete((await result).text);
       } catch (error: any) {
-        if (error.name !== 'AbortError') {
+        if (error.name !== "AbortError") {
           ctx.error(error);
         }
       } finally {
@@ -463,19 +453,21 @@ export function createOpenAILLM(systemPrompt: string): LLMAdapter {
 ### Example: ElevenLabs TTS Adapter
 
 ```typescript
-import { ElevenLabsClient } from 'elevenlabs';
-import type { TTSAdapter, TTSContext } from 'voice-ai';
+import { ElevenLabsClient } from "elevenlabs";
+import type { TTSAdapter, TTSContext } from "voice-ai";
 
 export function createElevenLabsTTS(apiKey: string): TTSAdapter {
   const client = new ElevenLabsClient({ apiKey });
   let currentStream: any = null;
 
   return {
+    metadata: { name: "ElevenLabs", version: "1.0.0", type: "tts" },
+
     async synthesize(text: string, ctx: TTSContext) {
       try {
-        const audioStream = await client.textToSpeech.convertAsStream('voice-id', {
+        const audioStream = await client.textToSpeech.convertAsStream("voice-id", {
           text,
-          model_id: 'eleven_turbo_v2_5',
+          model_id: "eleven_turbo_v2_5",
         });
 
         currentStream = audioStream;
@@ -510,7 +502,7 @@ Both VAD and turn detection have fallback mechanisms:
 | **VAD**            | Uses VAD adapter           | STT's built-in VAD events                 |
 | **Turn Detection** | Uses turn detector adapter | STT's `transcript(text, true)` = turn end |
 
-This means you can get a working voice agent with just the four required adapters, but can add specialized VAD (e.g., Silero for faster barge-in) or semantic turn detection when needed.
+This means you can get a working voice agent with just the three required adapters, but can add specialized VAD (e.g., Silero for faster barge-in) or semantic turn detection when needed.
 
 ## Barge-in Detection
 
@@ -522,7 +514,7 @@ Barge-in is detected when:
 
 When barge-in occurs:
 
-- `ai-turn-interrupted` event is emitted (part of AI turn events)
+- `ai-turn:interrupted` event is emitted with partial text
 - TTS and audio streaming are stopped
 - LLM generation is cancelled
 - Agent returns to listening state
@@ -535,7 +527,7 @@ Adapters can use `ctx.say()` to trigger filler phrases during latency:
 // In your LLM adapter
 const timeout = setTimeout(() => {
   if (!firstToken) {
-    ctx.say('Let me check that for you...');
+    ctx.say("Let me check that for you...");
   }
 }, 300);
 
@@ -544,6 +536,8 @@ firstToken = true;
 clearTimeout(timeout);
 ctx.interrupt(); // Stop filler
 ```
+
+Note: Filler events (`_filler:say`, `_filler:interrupt`) are internal and not exposed to users.
 
 ## Development
 
@@ -576,6 +570,7 @@ The test suite includes realistic conversation flow tests that verify:
 - Barge-in handling
 - Multi-turn conversations
 - Error handling
+- Internal event filtering
 
 See `test/index.test.ts` for examples.
 

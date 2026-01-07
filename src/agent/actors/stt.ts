@@ -1,55 +1,54 @@
 /**
  * STT (Speech-to-Text) Actor
  *
- * Handles speech recognition via the STT adapter.
+ * Handles speech recognition via the STT provider.
  * Receives audio input and emits transcript events.
  */
 
 import { fromCallback } from "xstate";
-import type { ResolvedAgentConfig } from "../../types/config";
-import type { AgentEvent } from "../../types/events";
+import type { AgentConfig, AudioFormat } from "../../types/config";
+import type { MachineEvent } from "../../types/events";
+
+/** Default audio format if not specified in config */
+const DEFAULT_AUDIO_FORMAT: AudioFormat = {
+  sampleRate: 24000,
+  channels: 1,
+  bitDepth: 32,
+};
 
 export const sttActor = fromCallback<
-  AgentEvent,
+  MachineEvent,
   {
-    config: ResolvedAgentConfig;
+    config: AgentConfig;
     abortSignal: AbortSignal;
-    sayFn: (text: string) => void;
-    interruptFn: () => void;
-    isSpeakingFn: () => boolean;
   }
 >(({ sendBack, receive, input }) => {
-  const { config, abortSignal, sayFn, interruptFn, isSpeakingFn } = input;
-  const adapter = config.adapters.stt;
+  const { config, abortSignal } = input;
+  const provider = config.stt;
+  const audioFormat = config.audioFormat ?? DEFAULT_AUDIO_FORMAT;
 
-  adapter.start({
+  provider.start({
+    audioFormat,
     transcript: (text, isFinal) => {
-      if (isFinal) {
-        sendBack({ type: "stt-transcript-final", text });
-      } else {
-        sendBack({ type: "stt-transcript-partial", text });
-      }
+      sendBack({ type: "_stt:transcript", text, isFinal });
     },
     speechStart: () => {
-      sendBack({ type: "stt-speech-start" });
+      sendBack({ type: "_stt:speech-start" });
     },
     speechEnd: () => {
-      sendBack({ type: "stt-speech-end" });
+      sendBack({ type: "_stt:speech-end" });
     },
     error: (error) => {
-      sendBack({ type: "stt-error", error });
+      sendBack({ type: "_stt:error", error });
     },
-    say: sayFn,
-    interrupt: interruptFn,
-    isSpeaking: isSpeakingFn,
     signal: abortSignal,
   });
 
   receive((event) => {
-    if (event.type === "audio-input-chunk") {
-      adapter.sendAudio(event.audio);
+    if (event.type === "_audio:input") {
+      provider.sendAudio(event.audio);
     }
   });
 
-  return () => adapter.stop();
+  return () => provider.stop();
 });
