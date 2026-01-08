@@ -194,6 +194,105 @@ interface TurnDetectorContext {
 }
 ```
 
+## Creating Custom Providers
+
+Use the factory functions to create custom providers with less boilerplate:
+
+### `createCustomSTTProvider`
+
+```typescript
+import { createCustomSTTProvider } from "voice-ai";
+
+const stt = createCustomSTTProvider({
+  name: "MySTT",
+  version: "1.0.0", // optional, defaults to "1.0.0"
+  start: (ctx) => {
+    // Initialize STT connection
+    // Use ctx.transcript(), ctx.speechStart(), ctx.speechEnd(), ctx.error()
+  },
+  stop: () => {
+    // Clean up resources
+  },
+  sendAudio: (audio) => {
+    // Send audio to STT service
+  },
+});
+```
+
+### `createCustomLLMProvider`
+
+```typescript
+import { createCustomLLMProvider } from "voice-ai";
+
+const llm = createCustomLLMProvider({
+  name: "MyLLM",
+  generate: async (messages, ctx) => {
+    // Stream tokens using ctx.token()
+    // Report sentences using ctx.sentence()
+    // Complete with ctx.complete()
+    // Use ctx.say() for filler phrases
+  },
+});
+```
+
+### `createCustomTTSProvider`
+
+```typescript
+import { createCustomTTSProvider } from "voice-ai";
+
+const tts = createCustomTTSProvider({
+  name: "MyTTS",
+  synthesize: async (text, ctx) => {
+    // Stream audio chunks using ctx.audioChunk()
+    // Complete with ctx.complete()
+    // Handle errors with ctx.error()
+  },
+});
+```
+
+### `createCustomVADProvider`
+
+```typescript
+import { createCustomVADProvider } from "voice-ai";
+
+const vad = createCustomVADProvider({
+  name: "MyVAD",
+  start: (ctx) => {
+    // Initialize VAD
+    // Use ctx.speechStart(), ctx.speechEnd(), ctx.speechProbability()
+  },
+  stop: () => {
+    // Clean up resources
+  },
+  processAudio: (audio) => {
+    // Analyze audio for speech activity
+  },
+});
+```
+
+### `createCustomTurnDetectorProvider`
+
+```typescript
+import { createCustomTurnDetectorProvider } from "voice-ai";
+
+const turnDetector = createCustomTurnDetectorProvider({
+  name: "MyTurnDetector",
+  start: (ctx) => {
+    // Initialize turn detection
+    // Use ctx.turnEnd(), ctx.turnAbandoned()
+  },
+  stop: () => {
+    // Clean up resources
+  },
+  onSpeechEnd: (duration) => {
+    // Handle speech end event
+  },
+  onTranscript: (text, isFinal) => {
+    // Handle transcript updates
+  },
+});
+```
+
 ## API Reference
 
 ### `createAgent(config)`

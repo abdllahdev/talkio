@@ -130,6 +130,24 @@ export type {
 // Type guards (exported as values)
 export { isLLMFunction, isLLMProvider } from "./providers/types";
 
+// Provider factory functions
+export {
+  createCustomLLMProvider,
+  createCustomSTTProvider,
+  createCustomTTSProvider,
+  createCustomTurnDetectorProvider,
+  createCustomVADProvider,
+} from "./providers/factories";
+
+// Factory option types
+export type {
+  CreateCustomLLMProviderOptions,
+  CreateCustomSTTProviderOptions,
+  CreateCustomTTSProviderOptions,
+  CreateCustomTurnDetectorProviderOptions,
+  CreateCustomVADProviderOptions,
+} from "./providers/factories";
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEPRECATED ADAPTER ALIASES (for backward compatibility)
 // ═══════════════════════════════════════════════════════════════════════════════

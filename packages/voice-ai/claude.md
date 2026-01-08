@@ -50,7 +50,8 @@ src/
 │       ├── streamer.ts      # Audio streaming coordinator
 │       └── index.ts         # Actor exports
 ├── providers/
-│   └── types.ts       # Provider interface definitions
+│   ├── types.ts       # Provider interface definitions
+│   └── factories.ts   # Factory functions for creating custom providers
 └── index.ts           # Public API exports
 ```
 
@@ -279,6 +280,58 @@ export function createDeepgramSTT(settings: DeepgramSTTSettings = {}): STTProvid
   };
 }
 ```
+
+### Using Factory Functions for Custom Providers
+
+For simpler custom provider creation, use the factory functions in `src/providers/factories.ts`:
+
+```typescript
+import {
+  createCustomSTTProvider,
+  createCustomLLMProvider,
+  createCustomTTSProvider,
+  createCustomVADProvider,
+  createCustomTurnDetectorProvider,
+} from "voice-ai";
+
+// Create a custom STT provider
+const stt = createCustomSTTProvider({
+  name: "MySTT",
+  version: "1.0.0", // optional, defaults to "1.0.0"
+  start: (ctx) => {
+    /* ... */
+  },
+  stop: () => {
+    /* ... */
+  },
+  sendAudio: (audio) => {
+    /* ... */
+  },
+});
+
+// Create a custom LLM provider
+const llm = createCustomLLMProvider({
+  name: "MyLLM",
+  generate: async (messages, ctx) => {
+    /* ... */
+  },
+});
+
+// Create a custom TTS provider
+const tts = createCustomTTSProvider({
+  name: "MyTTS",
+  synthesize: async (text, ctx) => {
+    /* ... */
+  },
+});
+```
+
+These factory functions:
+
+- Handle metadata construction automatically
+- Default version to "1.0.0" if not provided
+- Set the correct provider type
+- Provide full TypeScript type safety
 
 ### Testing Approach
 
