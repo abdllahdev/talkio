@@ -25,13 +25,13 @@ export interface ProviderMetadata {
    * Human-readable provider name.
    * @example "Deepgram", "OpenAI", "ElevenLabs"
    */
-  name: string;
+  name?: string;
 
   /**
    * Provider package version.
    * @example "1.0.0"
    */
-  version: string;
+  version?: string;
 
   /**
    * Provider type for categorization.
@@ -612,4 +612,153 @@ export interface TurnDetectorProvider extends BaseProvider {
    * @param isFinal - Whether this is a final transcript
    */
   onTranscript(text: string, isFinal: boolean): void;
+}
+
+/**
+ * Options for creating a custom LLM provider.
+ */
+export interface CreateCustomLLMProviderOptions {
+  /** Provider name for identification (e.g., "MyLLM", "CustomLLM") */
+  name?: string;
+  /** Provider version (defaults to "1.0.0") */
+  version?: string;
+  /**
+   * Generate a response for the given messages.
+   *
+   * This function should:
+   * - Stream tokens using `ctx.token(token)` as they're generated
+   * - Report complete sentences using `ctx.sentence(sentence, index)`
+   * - Complete with `ctx.complete(fullText)` when done
+   * - Use `ctx.say(text)` for filler phrases/acknowledgments
+   * - Use `ctx.interrupt()` to stop current speech
+   * - Report errors using `ctx.error(error)`
+   * - Respect `ctx.signal` for cancellation
+   *
+   * @param messages - Conversation history (system, user, assistant, tool messages)
+   * @param ctx - LLM context with emit methods and conversation controls
+   */
+  generate: (messages: Message[], ctx: LLMContext) => void;
+}
+
+/**
+ * Options for creating a custom STT provider.
+ *
+ * @typeParam InputFormat - The audio format type(s) this provider accepts
+ */
+export interface CreateCustomSTTProviderOptions<InputFormat extends AudioFormat = AudioFormat> {
+  /** Provider name for identification (e.g., "MySTT", "CustomSTT") */
+  name?: string;
+  /** Provider version (defaults to "1.0.0") */
+  version?: string;
+  /** Audio formats this provider accepts as input (must be a const array) */
+  supportedInputFormats: readonly InputFormat[];
+  /** Default input format used when audio config is not specified in createAgent */
+  defaultInputFormat: InputFormat;
+  /** Start the STT session - initialize connections, set up listeners */
+  start: (ctx: STTContext) => void;
+  /** Stop the STT session - clean up resources, close connections */
+  stop: () => void;
+  /** Send audio data to be transcribed - called with audio chunks from the agent */
+  sendAudio: (audio: ArrayBuffer) => void;
+}
+
+/**
+ * Options for creating a custom TTS provider.
+ *
+ * @typeParam OutputFormat - The audio format type(s) this provider can output
+ */
+export interface CreateCustomTTSProviderOptions<OutputFormat extends AudioFormat = AudioFormat> {
+  /** Provider name for identification (e.g., "MyTTS", "CustomTTS") */
+  name?: string;
+  /** Provider version (defaults to "1.0.0") */
+  version?: string;
+  /** Audio formats this provider can output (must be a const array) */
+  supportedOutputFormats: readonly OutputFormat[];
+  /** Default output format used when audio config is not specified in createAgent */
+  defaultOutputFormat: OutputFormat;
+  /**
+   * Synthesize text to audio.
+   *
+   * This function should:
+   * - Stream audio chunks using `ctx.audioChunk(audio)` as they're synthesized
+   * - Complete with `ctx.complete()` when synthesis is done
+   * - Report errors using `ctx.error(error)`
+   * - Respect `ctx.signal` for cancellation
+   * - Produce audio in the format specified by `ctx.audioFormat`
+   *
+   * @param text - Text to synthesize
+   * @param ctx - TTS context with emit methods and audio format
+   */
+  synthesize: (text: string, ctx: TTSContext) => void;
+}
+
+/**
+ * Options for creating a custom VAD provider.
+ */
+export interface CreateCustomVADProviderOptions {
+  /** Provider name for identification (e.g., "MyVAD", "CustomVAD") */
+  name?: string;
+  /** Provider version (defaults to "1.0.0") */
+  version?: string;
+  /**
+   * Start VAD processing.
+   * Initialize your VAD model or service here.
+   *
+   * @param ctx - VAD context with emit methods
+   */
+  start: (ctx: VADContext) => void;
+  /**
+   * Stop VAD processing.
+   * Clean up resources, close connections.
+   */
+  stop: () => void;
+  /**
+   * Process an audio frame for speech activity detection.
+   *
+   * Called with each audio chunk from the agent. Analyze the audio
+   * and emit events:
+   * - `ctx.speechStart()` when speech begins
+   * - `ctx.speechEnd(duration)` when speech ends
+   * - `ctx.speechProbability(prob)` for probability scores (optional)
+   *
+   * @param audio - Audio data (ArrayBuffer) in the configured input format
+   */
+  processAudio: (audio: ArrayBuffer) => void;
+}
+
+/**
+ * Options for creating a custom Turn Detector provider.
+ */
+export interface CreateCustomTurnDetectorProviderOptions {
+  /** Provider name for identification (e.g., "MyTurnDetector", "CustomTurnDetector") */
+  name?: string;
+  /** Provider version (defaults to "1.0.0") */
+  version?: string;
+  /**
+   * Start turn detection.
+   * Initialize your turn detection logic here.
+   *
+   * @param ctx - Turn detector context with emit methods
+   */
+  start: (ctx: TurnDetectorContext) => void;
+  /**
+   * Stop turn detection.
+   * Clean up resources.
+   */
+  stop: () => void;
+  /**
+   * Called when VAD detects speech end.
+   * Use this to trigger turn detection logic based on speech duration.
+   *
+   * @param duration - Duration of the speech in milliseconds
+   */
+  onSpeechEnd: (duration: number) => void;
+  /**
+   * Called with transcript updates from the STT provider.
+   * Use this to implement semantic turn detection (e.g., detecting question endings).
+   *
+   * @param text - Transcript text (partial or final)
+   * @param isFinal - Whether this is a final transcript (true) or partial (false)
+   */
+  onTranscript: (text: string, isFinal: boolean) => void;
 }

@@ -160,4 +160,4 @@ export type {
   CreateCustomTTSProviderOptions,
   CreateCustomTurnDetectorProviderOptions,
   CreateCustomVADProviderOptions,
-} from "./providers/factories";
+} from "./providers/types";
