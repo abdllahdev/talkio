@@ -8,9 +8,15 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
-import type { VADContext, VADProvider } from "../../../src";
+import type { NormalizedAgentConfig, VADContext, VADProvider } from "../../../src";
 import { vadActor } from "../../../src/agent/actors/vad";
-import { createAudioChunk, mockLLMProvider, mockSTTProvider, mockTTSProvider } from "../../helpers";
+import {
+  createAudioChunk,
+  DEFAULT_AUDIO_CONFIG,
+  mockLLMProvider,
+  mockSTTProvider,
+  mockTTSProvider,
+} from "../../helpers";
 
 describe("vadActor", () => {
   const createTestVADProvider = () => {
@@ -35,11 +41,12 @@ describe("vadActor", () => {
     };
   };
 
-  const createTestConfig = (vadProvider?: VADProvider) => ({
+  const createTestConfig = (vadProvider?: VADProvider): NormalizedAgentConfig => ({
     stt: mockSTTProvider,
     llm: mockLLMProvider,
     tts: mockTTSProvider,
     vad: vadProvider,
+    audio: DEFAULT_AUDIO_CONFIG,
   });
 
   describe("when VAD provider is present", () => {
@@ -92,7 +99,7 @@ describe("vadActor", () => {
     });
 
     describe("audio routing", () => {
-      it("forwards _audio:input events to provider.processAudio()", () => {
+      it("decodes ArrayBuffer to Float32Array for provider.processAudio()", () => {
         const vad = createTestVADProvider();
         const config = createTestConfig(vad.provider);
         const abortController = new AbortController();
@@ -103,10 +110,13 @@ describe("vadActor", () => {
 
         actor.start();
 
-        const audioChunk = createAudioChunk([0.1, 0.2, 0.3]);
+        // Send ArrayBuffer (encoded audio)
+        const audioChunk = createAudioChunk();
         actor.send({ type: "_audio:input", audio: audioChunk });
 
-        expect(vad.mocks.processAudio).toHaveBeenCalledWith(audioChunk);
+        expect(vad.mocks.processAudio).toHaveBeenCalledTimes(1);
+        const receivedAudio = vad.mocks.processAudio.mock.calls[0][0];
+        expect(receivedAudio).toBeInstanceOf(ArrayBuffer);
       });
 
       it("forwards multiple audio chunks to provider", () => {
@@ -120,8 +130,8 @@ describe("vadActor", () => {
 
         actor.start();
 
-        const chunk1 = createAudioChunk([0.1, 0.2]);
-        const chunk2 = createAudioChunk([0.3, 0.4]);
+        const chunk1 = createAudioChunk();
+        const chunk2 = createAudioChunk();
 
         actor.send({ type: "_audio:input", audio: chunk1 });
         actor.send({ type: "_audio:input", audio: chunk2 });

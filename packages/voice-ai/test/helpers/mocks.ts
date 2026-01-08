@@ -21,9 +21,16 @@ import type {
   VADProvider,
 } from "../../src";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CAPTURING PROVIDERS (expose contexts for testing)
-// ═══════════════════════════════════════════════════════════════════════════════
+const SUPPORTED_INPUT_FORMATS = [
+  { encoding: "linear16", sampleRate: 16000, channels: 1 },
+  { encoding: "linear16", sampleRate: 24000, channels: 1 },
+  { encoding: "mulaw", sampleRate: 8000, channels: 1 },
+] as const;
+
+const SUPPORTED_OUTPUT_FORMATS = [
+  { encoding: "linear16", sampleRate: 24000, channels: 1 },
+  { encoding: "linear16", sampleRate: 16000, channels: 1 },
+] as const;
 
 export interface CapturingSTTProvider {
   provider: STTProvider;
@@ -41,7 +48,13 @@ export function createCapturingSTTProvider(): CapturingSTTProvider {
 
   return {
     provider: {
-      metadata: { name: "TestSTT", version: "1.0.0", type: "stt" as const },
+      metadata: {
+        name: "TestSTT",
+        version: "1.0.0",
+        type: "stt" as const,
+        supportedInputFormats: SUPPORTED_INPUT_FORMATS,
+        defaultInputFormat: SUPPORTED_INPUT_FORMATS[0],
+      },
       start: (c: STTContext) => {
         ctx = c;
       },
@@ -115,7 +128,13 @@ export function createCapturingTTSProvider(): CapturingTTSProvider {
 
   return {
     provider: {
-      metadata: { name: "TestTTS", version: "1.0.0", type: "tts" as const },
+      metadata: {
+        name: "TestTTS",
+        version: "1.0.0",
+        type: "tts" as const,
+        supportedOutputFormats: SUPPORTED_OUTPUT_FORMATS,
+        defaultOutputFormat: SUPPORTED_OUTPUT_FORMATS[0],
+      },
       synthesize: (text: string, c: TTSContext) => {
         ctx = c;
         lastText = text;
@@ -194,12 +213,14 @@ export function createCapturingTurnDetectorProvider(): CapturingTurnDetectorProv
   };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SIMPLE MOCK PROVIDERS (no capturing, just stubs)
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export const mockSTTProvider: STTProvider = {
-  metadata: { name: "MockSTT", version: "1.0.0", type: "stt" },
+  metadata: {
+    name: "MockSTT",
+    version: "1.0.0",
+    type: "stt",
+    supportedInputFormats: SUPPORTED_INPUT_FORMATS,
+    defaultInputFormat: SUPPORTED_INPUT_FORMATS[0],
+  },
   start: () => {},
   stop: () => {},
   sendAudio: () => {},
@@ -213,7 +234,13 @@ export const mockLLMProvider: LLMProvider = {
 export const mockLLMFunction: LLMFunction = () => {};
 
 export const mockTTSProvider: TTSProvider = {
-  metadata: { name: "MockTTS", version: "1.0.0", type: "tts" },
+  metadata: {
+    name: "MockTTS",
+    version: "1.0.0",
+    type: "tts",
+    supportedOutputFormats: SUPPORTED_OUTPUT_FORMATS,
+    defaultOutputFormat: SUPPORTED_OUTPUT_FORMATS[0],
+  },
   synthesize: () => {},
 };
 

@@ -8,9 +8,19 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
-import type { TTSContext, TTSProvider } from "../../../src";
+import type { TTSContext, TTSProvider, NormalizedAgentConfig } from "../../../src";
 import { ttsActor } from "../../../src/agent/actors/tts";
-import { DEFAULT_AUDIO_FORMAT, mockLLMProvider, mockSTTProvider } from "../../helpers";
+import {
+  DEFAULT_AUDIO_FORMAT,
+  DEFAULT_AUDIO_CONFIG,
+  mockLLMProvider,
+  mockSTTProvider,
+} from "../../helpers";
+
+const SUPPORTED_OUTPUT_FORMATS = [
+  { encoding: "linear16", sampleRate: 24000, channels: 1 },
+  { encoding: "linear16", sampleRate: 16000, channels: 1 },
+] as const;
 
 describe("ttsActor", () => {
   const createTestTTSProvider = () => {
@@ -22,7 +32,13 @@ describe("ttsActor", () => {
     });
 
     const provider: TTSProvider = {
-      metadata: { name: "TestTTS", version: "1.0.0", type: "tts" },
+      metadata: {
+        name: "TestTTS",
+        version: "1.0.0",
+        type: "tts",
+        supportedOutputFormats: SUPPORTED_OUTPUT_FORMATS,
+        defaultOutputFormat: SUPPORTED_OUTPUT_FORMATS[0],
+      },
       synthesize: synthesizeMock,
     };
 
@@ -34,11 +50,11 @@ describe("ttsActor", () => {
     };
   };
 
-  const createTestConfig = (ttsProvider: TTSProvider) => ({
+  const createTestConfig = (ttsProvider: TTSProvider): NormalizedAgentConfig => ({
     stt: mockSTTProvider,
     llm: mockLLMProvider,
     tts: ttsProvider,
-    audioFormat: DEFAULT_AUDIO_FORMAT,
+    audio: DEFAULT_AUDIO_CONFIG,
   });
 
   describe("initialization", () => {

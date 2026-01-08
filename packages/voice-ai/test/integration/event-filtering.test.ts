@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { createAgent, type AgentEvent } from "../../src";
 import {
+  createAudioChunk,
   createCapturingSTTProvider,
   createCapturingLLMProvider,
   createCapturingTTSProvider,
@@ -45,7 +46,7 @@ describe("event filtering", () => {
     await tick();
 
     const ttsCtx = tts.getCtx();
-    ttsCtx.audioChunk(new Float32Array([0.1, 0.2]));
+    ttsCtx.audioChunk(createAudioChunk());
     ttsCtx.complete();
     await tick();
 
@@ -173,7 +174,7 @@ describe("event filtering", () => {
     await tick();
 
     const ttsCtx = tts.getCtx();
-    ttsCtx.audioChunk(new Float32Array([0.1]));
+    ttsCtx.audioChunk(createAudioChunk());
     ttsCtx.complete();
     await tick();
 
@@ -280,7 +281,7 @@ describe("event filtering", () => {
     await tick();
 
     const ttsCtx = tts.getCtx();
-    ttsCtx.audioChunk(new Float32Array([0.1]));
+    ttsCtx.audioChunk(createAudioChunk());
     ttsCtx.complete();
     await tick();
 

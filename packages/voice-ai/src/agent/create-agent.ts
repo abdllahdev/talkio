@@ -1,11 +1,28 @@
 /**
  * Create Agent
  *
- * Public function for creating a voice agent.
+ * Public API for creating and managing voice AI agents.
+ *
+ * This module provides the main entry point for the voice-ai library. It exports
+ * the `createAgent` function which creates a fully configured voice agent instance
+ * that orchestrates STT, LLM, and TTS providers for real-time voice conversations.
+ *
+ * The agent manages the complete conversation lifecycle:
+ * - Audio input processing and transcription
+ * - Response generation via language models
+ * - Speech synthesis and audio output
+ * - Turn-taking and conversation state
+ * - Interruption detection and handling
+ * - Event emission for observability
+ * - Metrics collection and reporting
+ *
+ * @module agent/create-agent
  */
 
 import { nanoid } from "nanoid";
 import { createActor } from "xstate";
+import { normalizeFormat, type AudioFormat } from "../audio/types";
+import type { STTProvider, TTSProvider } from "../providers/types";
 import type { AgentMachineOutput, Message } from "../types/common";
 import type { AgentConfig } from "../types/config";
 import type { PublicAgentEvent } from "../types/events";
@@ -13,17 +30,42 @@ import type { AgentMetrics, MetricsTrackingState } from "../types/metrics";
 import { agentMachine } from "./machine";
 
 /**
- * Voice agent instance.
- * Provides methods to control the agent and send audio data.
+ * Voice agent instance that orchestrates STT, LLM, and TTS providers.
+ *
+ * The agent manages the complete voice conversation flow:
+ * - Receives audio input from the user
+ * - Transcribes speech using the STT provider
+ * - Generates responses using the LLM provider
+ * - Synthesizes speech using the TTS provider
+ * - Handles turn management, interruption detection, and conversation state
+ *
+ * @example
+ * ```typescript
+ * const agent = createAgent({
+ *   stt: mySTTProvider,
+ *   llm: myLLMProvider,
+ *   tts: myTTSProvider,
+ *   onEvent: (event) => console.log(event),
+ * });
+ *
+ * agent.start();
+ * agent.sendAudio(audioChunk);
+ * agent.stop();
+ * ```
  */
 export interface Agent {
-  /** Unique identifier for this agent instance */
+  /**
+   * Unique identifier for this agent instance.
+   * Generated automatically when the agent is created.
+   */
   readonly id: string;
 
   /**
-   * ReadableStream of audio output chunks.
-   * Yields Float32Array chunks as they are produced by TTS.
-   * Use this to handle audio playback in your application.
+   * ReadableStream of audio output chunks from the TTS provider.
+   *
+   * Yields ArrayBuffer chunks as they are produced by TTS.
+   * Audio is encoded in the format specified by the audio configuration.
+   * Use this stream to handle audio playback in your application.
    *
    * @example
    * ```typescript
@@ -31,76 +73,169 @@ export interface Agent {
    * while (true) {
    *   const { done, value } = await reader.read();
    *   if (done) break;
-   *   playAudio(value); // Float32Array chunk
+   *   playAudio(value); // ArrayBuffer chunk in configured encoding
    * }
    * ```
    */
-  readonly audioStream: ReadableStream<Float32Array>;
+  readonly audioStream: ReadableStream<ArrayBuffer>;
 
   /**
-   * Start the agent.
-   * Initializes STT, VAD, and other adapters.
+   * Start the agent and initialize all providers.
+   *
+   * This method:
+   * - Initializes the STT provider to begin listening for speech
+   * - Starts the VAD provider (if configured) for voice activity detection
+   * - Prepares the agent for processing audio input
+   *
+   * Must be called before sending audio data. The agent will emit
+   * an `agent:started` event when initialization is complete.
    */
   start(): void;
 
   /**
-   * Send audio data to the agent.
-   * Audio will be processed by STT and VAD (if configured).
-   * @param audio - Raw audio samples
+   * Send audio data to the agent for processing.
+   *
+   * The audio will be:
+   * - Processed by the STT provider for transcription
+   * - Analyzed by the VAD provider (if configured) for speech detection
+   * - Used for turn detection and interruption detection
+   *
+   * Audio must be in the encoding specified by the audio configuration.
+   * If no audio config is provided, the STT provider's default format is used.
+   *
+   * @param audio - Raw audio bytes (ArrayBuffer) in the configured input format
+   *
+   * @example
+   * ```typescript
+   * // Capture audio from microphone
+   * const audioChunk = await captureMicrophoneAudio();
+   * agent.sendAudio(audioChunk);
+   * ```
    */
-  sendAudio(audio: Float32Array): void;
+  sendAudio(audio: ArrayBuffer): void;
 
   /**
-   * Stop the agent.
-   * Cleans up all adapters and stops processing.
+   * Stop the agent and clean up all resources.
+   *
+   * This method:
+   * - Stops all active providers (STT, LLM, TTS, VAD, etc.)
+   * - Closes the audio output stream
+   * - Cleans up WebSocket connections and other resources
+   * - Emits an `agent:stopped` event
+   *
+   * Should be called when the agent is no longer needed to prevent resource leaks.
    */
   stop(): void;
 
   /**
    * Subscribe to agent state changes.
-   * @param callback - Function called on state changes
-   * @returns Unsubscribe function
+   *
+   * The callback is invoked whenever the agent's state changes, including:
+   * - Message updates
+   * - Transcript updates
+   * - Metrics updates
+   * - Status changes
+   *
+   * @param callback - Function called with the new state whenever it changes
+   * @returns Unsubscribe function that stops receiving state updates
+   *
+   * @example
+   * ```typescript
+   * const unsubscribe = agent.subscribe((state) => {
+   *   console.log("Agent is running:", state.isRunning);
+   *   console.log("Current transcript:", state.partialTranscript);
+   * });
+   *
+   * // Later, when done
+   * unsubscribe();
+   * ```
    */
   subscribe(callback: (state: AgentState) => void): () => void;
 
   /**
-   * Get current agent state snapshot.
+   * Get the current agent state snapshot.
+   *
+   * Returns a snapshot of the agent's current state without subscribing to updates.
+   * Use this for one-time state checks or when you don't need continuous updates.
+   *
+   * @returns Current agent state snapshot
+   *
+   * @example
+   * ```typescript
+   * const state = agent.getSnapshot();
+   * if (state.isRunning) {
+   *   console.log("Agent is active");
+   * }
+   * ```
    */
   getSnapshot(): AgentState;
 }
 
 /**
- * Agent state snapshot.
+ * Agent state snapshot providing a complete view of the agent's current state.
+ *
+ * This snapshot includes conversation history, current status, metrics, and more.
+ * Use `agent.subscribe()` to receive updates when the state changes, or
+ * `agent.getSnapshot()` to get the current state on demand.
  */
 export interface AgentState {
-  /** Current state value */
+  /**
+   * Current agent state value.
+   * Can be a simple string (e.g., "idle", "running") or a nested object
+   * for hierarchical states (e.g., { running: "listening" }).
+   */
   value: string | Record<string, unknown>;
 
-  /** Whether the agent is running */
+  /**
+   * Whether the agent is currently running and processing audio.
+   * True when the agent is in an active state (listening, processing, speaking).
+   */
   isRunning: boolean;
 
-  /** Whether the agent is currently speaking */
+  /**
+   * Whether the agent is currently speaking (TTS is active).
+   * True when audio is being synthesized and streamed.
+   */
   isSpeaking: boolean;
 
-  /** Conversation messages */
+  /**
+   * Complete conversation history.
+   * Contains all messages exchanged between the user and the agent,
+   * including system messages, user messages, and assistant responses.
+   */
   messages: Message[];
 
-  /** Current partial transcript */
+  /**
+   * Current partial transcript from the STT provider.
+   * Updates in real-time as the user speaks. This is the latest
+   * transcript, which may be partial (not yet finalized).
+   */
   partialTranscript: string;
 
-  /** Actor status: 'active', 'done', 'error', or 'stopped' */
+  /**
+   * Agent lifecycle status.
+   * - `"active"` - Agent is running and processing
+   * - `"done"` - Agent has completed and reached a final state
+   * - `"error"` - Agent encountered an error
+   * - `"stopped"` - Agent has been stopped
+   */
   status: "active" | "done" | "error" | "stopped";
 
-  /** Output when agent is done (status === 'done') */
+  /**
+   * Output produced when the agent reaches its final state (status === 'done').
+   * Contains a summary of the conversation, including all messages and turn count.
+   * Undefined when the agent is not in a done state.
+   */
   output: AgentMachineOutput | undefined;
 
-  /** Cumulative metrics for the session */
+  /**
+   * Cumulative metrics for the entire session.
+   * Includes session duration, turn statistics, latency averages,
+   * content totals, audio metrics, and error tracking.
+   */
   metrics: AgentMetrics;
 }
 
-/**
- * Helper to check if the agent is in a running state
- */
 function isRunningState(value: string | Record<string, unknown>): boolean {
   if (value === "running") return true;
   if (typeof value === "object" && value !== null && "running" in value) return true;
@@ -114,9 +249,6 @@ function isInternalEvent(event: { type: string }): boolean {
   return event.type.startsWith("_");
 }
 
-/**
- * Compute aggregate AgentMetrics from the internal tracking state.
- */
 function computeAgentMetrics(metricsState: MetricsTrackingState): AgentMetrics {
   const m = metricsState;
   const now = Date.now();
@@ -159,55 +291,82 @@ function computeAgentMetrics(metricsState: MetricsTrackingState): AgentMetrics {
 }
 
 /**
- * Create a voice agent.
+ * Create a voice AI agent that orchestrates STT, LLM, and TTS providers.
  *
- * @param config - Agent configuration including adapters and options
- * @returns Agent instance
+ * The agent manages the complete voice conversation lifecycle:
+ * - Processes audio input through STT for transcription
+ * - Generates responses using the LLM provider
+ * - Synthesizes speech using the TTS provider
+ * - Handles turn-taking, interruption detection, and conversation state
  *
- * @example
+ * @param config - Agent configuration including required providers (STT, LLM, TTS)
+ *   and optional settings (VAD, turn detector, interruption, audio config, event handler)
+ * @returns Agent instance ready to process voice conversations
+ *
+ * @example Basic usage
  * ```typescript
+ * import { createAgent } from "voice-ai";
+ * import { createDeepgram } from "@voice-ai/deepgram";
+ *
+ * const deepgram = createDeepgram({ apiKey: process.env.DEEPGRAM_API_KEY });
+ *
  * const agent = createAgent({
- *   adapters: {
- *     stt: mySTTAdapter,
- *     llm: myLLMAdapter,
- *     tts: myTTSAdapter,
- *     audioOutput: myAudioOutputAdapter,
- *   },
+ *   stt: deepgram.stt({ model: "nova-3" }),
+ *   llm: myLLMProvider,
+ *   tts: deepgram.tts({ model: "aura-2-thalia-en" }),
  *   onEvent: (event) => {
  *     switch (event.type) {
- *       case 'human-turn:ended':
- *         console.log('User said:', event.transcript);
+ *       case "human-turn:ended":
+ *         console.log("User said:", event.transcript);
  *         break;
- *       case 'ai-turn:sentence':
- *         console.log('Agent:', event.sentence);
+ *       case "ai-turn:sentence":
+ *         console.log("Agent:", event.sentence);
  *         break;
  *     }
  *   },
  * });
  *
  * agent.start();
- * // Send audio from microphone
- * agent.sendAudio(audioChunk);
+ * agent.sendAudio(audioChunk); // Send audio from microphone
+ * agent.stop();
+ * ```
+ *
+ * @example With custom audio configuration
+ * ```typescript
+ * const agent = createAgent({
+ *   stt: mySTTProvider,
+ *   llm: myLLMProvider,
+ *   tts: myTTSProvider,
+ *   audio: {
+ *     input: { encoding: "linear16", sampleRate: 16000 },
+ *     output: { encoding: "linear16", sampleRate: 24000 },
+ *   },
+ *   interruption: { enabled: true, minDurationMs: 200 },
+ * });
  * ```
  */
-export function createAgent(config: AgentConfig): Agent {
+export function createAgent<
+  STT extends STTProvider<AudioFormat>,
+  TTS extends TTSProvider<AudioFormat>,
+>(config: AgentConfig<STT, TTS>): Agent {
   const id = nanoid();
-
-  // Create audio output stream and capture the controller
-  let audioStreamController: ReadableStreamDefaultController<Float32Array> | null = null;
-  const audioStream = new ReadableStream<Float32Array>({
+  const audioConfig = {
+    input: normalizeFormat(config.audio?.input ?? config.stt.metadata.defaultInputFormat),
+    output: normalizeFormat(config.audio?.output ?? config.tts.metadata.defaultOutputFormat),
+  };
+  const normalizedConfig = {
+    ...config,
+    audio: audioConfig,
+  };
+  let audioStreamController: ReadableStreamDefaultController<ArrayBuffer> | null = null;
+  const audioStream = new ReadableStream<ArrayBuffer>({
     start(controller) {
       audioStreamController = controller;
     },
   });
-
-  // Create the XState actor with the stream controller
   const actor = createActor(agentMachine, {
-    input: { config, audioStreamController },
+    input: { config: normalizedConfig, audioStreamController },
   });
-
-  // Subscribe to emitted events using wildcard and forward to onEvent callback
-  // Filter out internal events (prefixed with "_") - only expose public events
   actor.on("*", (event) => {
     if (!isInternalEvent(event)) {
       config.onEvent?.(event as PublicAgentEvent);
@@ -220,24 +379,20 @@ export function createAgent(config: AgentConfig): Agent {
 
     start() {
       actor.start();
-      // Use internal event to start the agent
       actor.send({ type: "_agent:start" });
     },
 
-    sendAudio(audio: Float32Array) {
-      // Use internal event for audio input
+    sendAudio(audio: ArrayBuffer) {
       actor.send({ type: "_audio:input", audio });
     },
 
     stop() {
-      // Use internal event to stop the agent
       actor.send({ type: "_agent:stop" });
       actor.stop();
-      // Close the audio stream when agent stops
       try {
         audioStreamController?.close();
       } catch {
-        // Stream may already be closed
+        // Ignore if stream is already closed
       }
     },
 

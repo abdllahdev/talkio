@@ -1,5 +1,5 @@
 /**
- * Integration Tests: Barge-in
+ * Integration Tests: Interruption
  *
  * Tests for user interruption handling when the agent is speaking.
  */
@@ -15,8 +15,8 @@ import {
   tick,
 } from "../helpers";
 
-describe("barge-in handling", () => {
-  it("handles barge-in when user interrupts agent (STT fallback)", async () => {
+describe("interruption handling", () => {
+  it("handles interruption when user interrupts agent (STT fallback)", async () => {
     const events: AgentEvent[] = [];
 
     const stt = createCapturingSTTProvider();
@@ -27,7 +27,7 @@ describe("barge-in handling", () => {
       stt: stt.provider,
       llm: llm.provider,
       tts: tts.provider,
-      bargeIn: {
+      interruption: {
         enabled: true,
         minDurationMs: 50, // Low threshold for testing
       },
@@ -51,11 +51,11 @@ describe("barge-in handling", () => {
     // Verify agent is speaking
     expect(agent.getSnapshot().isSpeaking).toBe(true);
 
-    // User interrupts! (barge-in using STT's speechStart)
+    // User interrupts! (interruption using STT's speechStart)
     sttCtx.speechStart();
     await tick();
 
-    // Verify barge-in was detected
+    // Verify interruption was detected
     expectEventExists(events, "ai-turn:interrupted");
 
     // Agent should have stopped speaking
@@ -67,7 +67,7 @@ describe("barge-in handling", () => {
     agent.stop();
   });
 
-  it("handles barge-in with VAD provider", async () => {
+  it("handles interruption with VAD provider", async () => {
     const events: AgentEvent[] = [];
 
     const stt = createCapturingSTTProvider();
@@ -80,7 +80,7 @@ describe("barge-in handling", () => {
       llm: llm.provider,
       tts: tts.provider,
       vad: vad.provider,
-      bargeIn: {
+      interruption: {
         enabled: true,
         minDurationMs: 50,
       },
@@ -109,7 +109,7 @@ describe("barge-in handling", () => {
     vadCtx.speechStart();
     await tick();
 
-    // Verify barge-in was detected
+    // Verify interruption was detected
     expectEventExists(events, "ai-turn:interrupted");
 
     // Agent should have stopped speaking
@@ -118,7 +118,7 @@ describe("barge-in handling", () => {
     agent.stop();
   });
 
-  it("does not interrupt when barge-in is disabled", async () => {
+  it("does not interrupt when interruption is disabled", async () => {
     const events: AgentEvent[] = [];
 
     const stt = createCapturingSTTProvider();
@@ -129,7 +129,7 @@ describe("barge-in handling", () => {
       stt: stt.provider,
       llm: llm.provider,
       tts: tts.provider,
-      bargeIn: {
+      interruption: {
         enabled: false,
       },
       onEvent: (event) => events.push(event),
@@ -166,7 +166,7 @@ describe("barge-in handling", () => {
     agent.stop();
   });
 
-  it("cancels TTS when barge-in occurs", async () => {
+  it("cancels TTS when interruption occurs", async () => {
     const events: AgentEvent[] = [];
 
     const stt = createCapturingSTTProvider();
@@ -177,7 +177,7 @@ describe("barge-in handling", () => {
       stt: stt.provider,
       llm: llm.provider,
       tts: tts.provider,
-      bargeIn: {
+      interruption: {
         enabled: true,
         minDurationMs: 50,
       },
@@ -208,7 +208,7 @@ describe("barge-in handling", () => {
     agent.stop();
   });
 
-  it("returns to listening state after barge-in", async () => {
+  it("returns to listening state after interruption", async () => {
     const events: AgentEvent[] = [];
 
     const stt = createCapturingSTTProvider();
@@ -219,7 +219,7 @@ describe("barge-in handling", () => {
       stt: stt.provider,
       llm: llm.provider,
       tts: tts.provider,
-      bargeIn: {
+      interruption: {
         enabled: true,
         minDurationMs: 50,
       },
@@ -239,7 +239,7 @@ describe("barge-in handling", () => {
     llmCtx.sentence("Hello!", 0);
     await tick();
 
-    // Barge-in
+    // Interruption
     sttCtx.speechStart();
     await tick();
 

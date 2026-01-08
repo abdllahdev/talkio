@@ -7,10 +7,6 @@
 import { expect } from "vitest";
 import type { AgentEvent } from "../../src";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// EVENT ASSERTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
-
 /**
  * Assert that events contain a specific sequence in order.
  * The sequence must appear in order, but other events may be interspersed.
@@ -82,10 +78,6 @@ export function findEvents<T extends AgentEvent["type"]>(
 export function countEvents(events: AgentEvent[], type: AgentEvent["type"]): number {
   return events.filter((e) => e.type === type).length;
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// STATE ASSERTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Assert agent snapshot has expected values.

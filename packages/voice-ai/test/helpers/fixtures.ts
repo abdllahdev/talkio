@@ -4,33 +4,51 @@
  * Predefined test data for audio formats, messages, and audio chunks.
  */
 
-import type { AudioFormat, Message } from "../../src";
+import type { Message, NormalizedAudioConfig, NormalizedAudioFormat } from "../../src";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AUDIO FORMAT FIXTURES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export const DEFAULT_AUDIO_FORMAT: AudioFormat = {
+export const DEFAULT_AUDIO_FORMAT: NormalizedAudioFormat = {
   sampleRate: 24000,
   channels: 1,
-  bitDepth: 32,
+  encoding: "linear16",
 };
 
-export const LOW_QUALITY_AUDIO_FORMAT: AudioFormat = {
+export const LOW_QUALITY_AUDIO_FORMAT: NormalizedAudioFormat = {
   sampleRate: 16000,
   channels: 1,
-  bitDepth: 16,
+  encoding: "linear16",
 };
 
-export const HIGH_QUALITY_AUDIO_FORMAT: AudioFormat = {
+export const HIGH_QUALITY_AUDIO_FORMAT: NormalizedAudioFormat = {
   sampleRate: 48000,
   channels: 2,
-  bitDepth: 32,
+  encoding: "linear16",
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MESSAGE FIXTURES
-// ═══════════════════════════════════════════════════════════════════════════════
+export const TELEPHONY_AUDIO_FORMAT: NormalizedAudioFormat = {
+  sampleRate: 8000,
+  channels: 1,
+  encoding: "mulaw",
+};
+
+export const DEFAULT_AUDIO_CONFIG: NormalizedAudioConfig = {
+  input: DEFAULT_AUDIO_FORMAT,
+  output: DEFAULT_AUDIO_FORMAT,
+};
+
+export const LOW_QUALITY_AUDIO_CONFIG: NormalizedAudioConfig = {
+  input: LOW_QUALITY_AUDIO_FORMAT,
+  output: LOW_QUALITY_AUDIO_FORMAT,
+};
+
+export const HIGH_QUALITY_AUDIO_CONFIG: NormalizedAudioConfig = {
+  input: HIGH_QUALITY_AUDIO_FORMAT,
+  output: HIGH_QUALITY_AUDIO_FORMAT,
+};
+
+export const MIXED_AUDIO_CONFIG: NormalizedAudioConfig = {
+  input: LOW_QUALITY_AUDIO_FORMAT,
+  output: DEFAULT_AUDIO_FORMAT,
+};
 
 export const singleUserMessage: Message[] = [{ role: "user", content: "Hello, how are you?" }];
 
@@ -51,60 +69,34 @@ export const conversationWithSystemMessage: Message[] = [
   { role: "assistant", content: "Hi there! How can I help you?" },
 ];
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AUDIO DATA GENERATORS
-// ═══════════════════════════════════════════════════════════════════════════════
-
 /**
- * Create an audio chunk with optional sample values.
- * @param samples - Array of sample values (defaults to [0.1, 0.2, 0.3])
+ * Create an audio chunk as ArrayBuffer.
+ * Creates a simple ArrayBuffer with the given number of bytes.
  */
-export function createAudioChunk(samples: number[] = [0.1, 0.2, 0.3]): Float32Array {
-  return new Float32Array(samples);
+export function createAudioChunk(byteLength: number = 6): ArrayBuffer {
+  return new ArrayBuffer(byteLength);
 }
 
 /**
- * Create a silence chunk (all zeros).
- * @param length - Number of samples
+ * Create a silence chunk (all zeros) as ArrayBuffer.
+ * @param byteLength - Number of bytes
  */
-export function createSilenceChunk(length: number): Float32Array {
-  return new Float32Array(length);
+export function createSilenceChunk(byteLength: number): ArrayBuffer {
+  return new ArrayBuffer(byteLength);
 }
 
 /**
- * Create a noise chunk (random values between -1 and 1).
- * @param length - Number of samples
+ * Create a noise chunk (random bytes) as ArrayBuffer.
+ * @param byteLength - Number of bytes
  */
-export function createNoiseChunk(length: number): Float32Array {
-  const chunk = new Float32Array(length);
-  for (let i = 0; i < length; i++) {
-    chunk[i] = Math.random() * 2 - 1;
+export function createNoiseChunk(byteLength: number): ArrayBuffer {
+  const buffer = new ArrayBuffer(byteLength);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < byteLength; i++) {
+    view[i] = Math.floor(Math.random() * 256);
   }
-  return chunk;
+  return buffer;
 }
-
-/**
- * Create a sine wave chunk.
- * @param length - Number of samples
- * @param frequency - Frequency in Hz (relative to sample rate)
- * @param amplitude - Amplitude (0-1)
- */
-export function createSineWaveChunk(
-  length: number,
-  frequency: number = 440,
-  amplitude: number = 0.5,
-): Float32Array {
-  const chunk = new Float32Array(length);
-  for (let i = 0; i < length; i++) {
-    chunk[i] =
-      amplitude * Math.sin((2 * Math.PI * frequency * i) / DEFAULT_AUDIO_FORMAT.sampleRate);
-  }
-  return chunk;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DELAY HELPER
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Wait for a short time to allow events to propagate.

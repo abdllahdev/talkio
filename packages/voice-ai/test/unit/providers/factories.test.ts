@@ -13,6 +13,16 @@ import {
   createCustomVADProvider,
 } from "../../../src/providers/factories";
 
+const STT_FORMATS = [
+  { encoding: "linear16", sampleRate: 16000, channels: 1 },
+  { encoding: "linear16", sampleRate: 24000, channels: 1 },
+] as const;
+
+const TTS_FORMATS = [
+  { encoding: "linear16", sampleRate: 24000, channels: 1 },
+  { encoding: "linear16", sampleRate: 16000, channels: 1 },
+] as const;
+
 describe("createCustomSTTProvider", () => {
   it("creates a valid STT provider with required properties", () => {
     const startMock = vi.fn();
@@ -21,6 +31,8 @@ describe("createCustomSTTProvider", () => {
 
     const provider = createCustomSTTProvider({
       name: "TestSTT",
+      supportedInputFormats: STT_FORMATS,
+      defaultInputFormat: STT_FORMATS[0],
       start: startMock,
       stop: stopMock,
       sendAudio: sendAudioMock,
@@ -28,6 +40,8 @@ describe("createCustomSTTProvider", () => {
 
     expect(provider.metadata.name).toBe("TestSTT");
     expect(provider.metadata.type).toBe("stt");
+    expect(provider.metadata.supportedInputFormats).toBe(STT_FORMATS);
+    expect(provider.metadata.defaultInputFormat).toBe(STT_FORMATS[0]);
     expect(provider.start).toBe(startMock);
     expect(provider.stop).toBe(stopMock);
     expect(provider.sendAudio).toBe(sendAudioMock);
@@ -36,6 +50,8 @@ describe("createCustomSTTProvider", () => {
   it("uses default version 1.0.0 when not provided", () => {
     const provider = createCustomSTTProvider({
       name: "TestSTT",
+      supportedInputFormats: STT_FORMATS,
+      defaultInputFormat: STT_FORMATS[0],
       start: vi.fn(),
       stop: vi.fn(),
       sendAudio: vi.fn(),
@@ -48,6 +64,8 @@ describe("createCustomSTTProvider", () => {
     const provider = createCustomSTTProvider({
       name: "TestSTT",
       version: "2.5.0",
+      supportedInputFormats: STT_FORMATS,
+      defaultInputFormat: STT_FORMATS[0],
       start: vi.fn(),
       stop: vi.fn(),
       sendAudio: vi.fn(),
@@ -63,13 +81,19 @@ describe("createCustomSTTProvider", () => {
 
     const provider = createCustomSTTProvider({
       name: "TestSTT",
+      supportedInputFormats: STT_FORMATS,
+      defaultInputFormat: STT_FORMATS[0],
       start: startMock,
       stop: stopMock,
       sendAudio: sendAudioMock,
     });
 
     const mockCtx = {
-      audioFormat: { sampleRate: 24000 as const, channels: 1 as const, bitDepth: 32 as const },
+      audioFormat: {
+        sampleRate: 24000 as const,
+        channels: 1 as const,
+        encoding: "linear16" as const,
+      },
       transcript: vi.fn(),
       speechStart: vi.fn(),
       speechEnd: vi.fn(),
@@ -83,7 +107,7 @@ describe("createCustomSTTProvider", () => {
     provider.stop();
     expect(stopMock).toHaveBeenCalled();
 
-    const audio = new Float32Array([0.1, 0.2]);
+    const audio = new ArrayBuffer(8);
     provider.sendAudio(audio);
     expect(sendAudioMock).toHaveBeenCalledWith(audio);
   });
@@ -154,17 +178,23 @@ describe("createCustomTTSProvider", () => {
 
     const provider = createCustomTTSProvider({
       name: "TestTTS",
+      supportedOutputFormats: TTS_FORMATS,
+      defaultOutputFormat: TTS_FORMATS[0],
       synthesize: synthesizeMock,
     });
 
     expect(provider.metadata.name).toBe("TestTTS");
     expect(provider.metadata.type).toBe("tts");
+    expect(provider.metadata.supportedOutputFormats).toBe(TTS_FORMATS);
+    expect(provider.metadata.defaultOutputFormat).toBe(TTS_FORMATS[0]);
     expect(provider.synthesize).toBe(synthesizeMock);
   });
 
   it("uses default version 1.0.0 when not provided", () => {
     const provider = createCustomTTSProvider({
       name: "TestTTS",
+      supportedOutputFormats: TTS_FORMATS,
+      defaultOutputFormat: TTS_FORMATS[0],
       synthesize: vi.fn(),
     });
 
@@ -175,6 +205,8 @@ describe("createCustomTTSProvider", () => {
     const provider = createCustomTTSProvider({
       name: "TestTTS",
       version: "1.2.3",
+      supportedOutputFormats: TTS_FORMATS,
+      defaultOutputFormat: TTS_FORMATS[0],
       synthesize: vi.fn(),
     });
 
@@ -186,11 +218,17 @@ describe("createCustomTTSProvider", () => {
 
     const provider = createCustomTTSProvider({
       name: "TestTTS",
+      supportedOutputFormats: TTS_FORMATS,
+      defaultOutputFormat: TTS_FORMATS[0],
       synthesize: synthesizeMock,
     });
 
     const mockCtx = {
-      audioFormat: { sampleRate: 24000 as const, channels: 1 as const, bitDepth: 32 as const },
+      audioFormat: {
+        sampleRate: 24000 as const,
+        channels: 1 as const,
+        encoding: "linear16" as const,
+      },
       audioChunk: vi.fn(),
       complete: vi.fn(),
       error: vi.fn(),
@@ -270,7 +308,7 @@ describe("createCustomVADProvider", () => {
     provider.stop();
     expect(stopMock).toHaveBeenCalled();
 
-    const audio = new Float32Array([0.1, 0.2]);
+    const audio = new ArrayBuffer(8);
     provider.processAudio(audio);
     expect(processAudioMock).toHaveBeenCalledWith(audio);
   });

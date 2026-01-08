@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { createAgent } from "../../../src";
 import {
-  LOW_QUALITY_AUDIO_FORMAT,
+  LOW_QUALITY_AUDIO_CONFIG,
   mockLLMProvider,
   mockSTTProvider,
   mockTTSProvider,
@@ -71,23 +71,23 @@ describe("createAgent", () => {
       expect(agent).toBeDefined();
     });
 
-    it("accepts audioFormat configuration", () => {
+    it("accepts audio configuration", () => {
       const agent = createAgent({
         stt: mockSTTProvider,
         llm: mockLLMProvider,
         tts: mockTTSProvider,
-        audioFormat: LOW_QUALITY_AUDIO_FORMAT,
+        audio: LOW_QUALITY_AUDIO_CONFIG,
       });
 
       expect(agent).toBeDefined();
     });
 
-    it("accepts bargeIn configuration", () => {
+    it("accepts interruption configuration", () => {
       const agent = createAgent({
         stt: mockSTTProvider,
         llm: mockLLMProvider,
         tts: mockTTSProvider,
-        bargeIn: {
+        interruption: {
           enabled: true,
           minDurationMs: 100,
         },

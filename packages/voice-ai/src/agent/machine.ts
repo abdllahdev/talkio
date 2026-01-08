@@ -1,33 +1,34 @@
 /**
  * Agent State Machine
  *
- * This is the core XState machine that orchestrates the voice agent.
- * It manages turn-taking, barge-in detection, and coordination between
- * STT, LLM, and TTS providers.
+ * Core XState machine that orchestrates the complete voice agent lifecycle.
  *
- * Architecture:
- * - Uses parallel states for independent concerns (listening, responding, streaming)
- * - Uses emit() for external event notification (public events only)
- * - Uses invoke for persistent actors (STT, VAD, turn detector)
- * - Uses spawn for dynamic actors (LLM, TTS per turn/sentence)
- * - Audio output is handled internally via ReadableStream exposed on Agent
+ * This machine coordinates all aspects of a voice conversation:
+ * - **Lifecycle Management**: Starting/stopping providers, managing resources
+ * - **Turn Management**: Detecting user turns, generating AI responses, handling interruptions
+ * - **Interruption Detection**: Allowing users to interrupt the agent while speaking
+ * - **Provider Coordination**: Orchestrating STT, LLM, TTS, VAD, and turn detector actors
+ * - **Event Emission**: Translating internal machine events to public user-facing events
+ * - **Metrics Tracking**: Collecting performance and usage metrics throughout the session
+ * - **Error Handling**: Managing errors from providers and propagating them appropriately
  *
- * Event Architecture:
- * - Internal events (prefixed with "_") are handled by the machine but not exposed
- * - Public events (no prefix) are emitted to users via onEvent callback
+ * The machine uses a hierarchical state structure:
+ * - `idle` - Initial state, agent not running
+ * - `running` - Agent is active and processing
+ *   - `listening` - Waiting for user input
+ *   - `processing` - Generating response (LLM active)
+ *   - `speaking` - Synthesizing speech (TTS active)
  *
- * Flow:
- * 1. User speaks → STT transcribes
- * 2. Turn ends → LLM generates response
- * 3. LLM streams sentences → TTS synthesizes each
- * 4. TTS produces audio → Chunks pushed to audioStream and emitted as events
- * 5. TTS completes → AI turn ends
+ * State transitions are driven by events from providers and user actions.
+ * The machine emits public events via the `onEvent` callback for observability.
+ *
+ * @module agent/machine
  */
 
 import { nanoid } from "nanoid";
 import { assign, emit, sendTo, setup } from "xstate";
 import type { AgentMachineOutput } from "../types/common";
-import type { AgentConfig } from "../types/config";
+import type { NormalizedAgentConfig } from "../types/config";
 import type { MachineEvent, PublicAgentEvent } from "../types/events";
 import type { AITurnMetrics, HumanTurnMetrics } from "../types/metrics";
 import {
@@ -40,17 +41,13 @@ import {
 } from "./actors";
 import { type AgentMachineContext, createInitialContext } from "./context";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SETUP
-// ═══════════════════════════════════════════════════════════════════════════════
-
 const agentMachineSetup = setup({
   types: {
     context: {} as AgentMachineContext,
     events: {} as MachineEvent,
     input: {} as {
-      config: AgentConfig;
-      audioStreamController: ReadableStreamDefaultController<Float32Array> | null;
+      config: NormalizedAgentConfig;
+      audioStreamController: ReadableStreamDefaultController<ArrayBuffer> | null;
     },
     output: {} as AgentMachineOutput,
     emitted: {} as PublicAgentEvent,
@@ -65,55 +62,30 @@ const agentMachineSetup = setup({
     audioStreamer: audioStreamerActor,
   },
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // GUARDS
-  // ═══════════════════════════════════════════════════════════════════════════
-
   guards: {
-    // VAD source checks
     hasVADAdapter: ({ context }) => context.vadSource === "adapter",
     usesSTTForVAD: ({ context }) => context.vadSource === "stt",
-
-    // Turn detector checks
     hasTurnDetector: ({ context }) => context.turnSource === "adapter",
     noTurnDetector: ({ context }) => context.turnSource === "stt",
-
-    // Barge-in checks
-    shouldBargeIn: ({ context, event }) => {
-      if (!context.config.bargeIn?.enabled || !context.isSpeaking) return false;
+    shouldInterrupt: ({ context, event }) => {
+      if (!context.config.interruption?.enabled || !context.isSpeaking) return false;
       if (event.type === "_vad:speech-end") {
-        return event.duration >= (context.config.bargeIn?.minDurationMs ?? 0);
+        return event.duration >= (context.config.interruption?.minDurationMs ?? 0);
       }
       return true;
     },
-
-    canBargeInFromSTT: ({ context }) =>
+    canInterruptFromSTT: ({ context }) =>
       context.vadSource === "stt" &&
-      (context.config.bargeIn?.enabled ?? false) &&
+      (context.config.interruption?.enabled ?? false) &&
       context.isSpeaking,
-
-    // Queue checks
     hasPendingSentences: ({ context }) => context.sentenceQueue.length > 0,
-
-    // Speaking state
     isSpeaking: ({ context }) => context.isSpeaking,
     isNotSpeaking: ({ context }) => !context.isSpeaking,
-
-    // AI turn tracking
     aiTurnHadAudio: ({ context }) => context.aiTurnHadAudio,
     aiTurnHadNoAudio: ({ context }) => !context.aiTurnHadAudio,
   },
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ACTIONS
-  // ═══════════════════════════════════════════════════════════════════════════
-
   actions: {
-    // ─────────────────────────────────────────────────────────────────────────
-    // Public event emitters (semantic events for users)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    // Agent lifecycle
     emitAgentStarted: emit({ type: "agent:started" }),
     emitAgentStopped: emit({ type: "agent:stopped" }),
     emitAgentError: emit(({ event }) => {
@@ -166,8 +138,6 @@ const agentMachineSetup = setup({
       const reason = event.type === "_turn:abandoned" ? event.reason : "unknown";
       return { type: "human-turn:abandoned" as const, reason };
     }),
-
-    // AI turn events
     emitAITurnStarted: emit({ type: "ai-turn:started" }),
     emitAITurnToken: emit(({ event }) => {
       const token = event.type === "_llm:token" ? event.token : "";
@@ -184,7 +154,7 @@ const agentMachineSetup = setup({
       return { type: "ai-turn:sentence" as const, sentence: "", index: 0 };
     }),
     emitAITurnAudio: emit(({ event }) => {
-      const audio = event.type === "_tts:chunk" ? event.audio : new Float32Array(0);
+      const audio = event.type === "_tts:chunk" ? event.audio : new ArrayBuffer(0);
       return { type: "ai-turn:audio" as const, audio };
     }),
     emitAITurnEndedWithAudio: emit(({ context }) => {
@@ -266,10 +236,6 @@ const agentMachineSetup = setup({
       const value = event.type === "_vad:probability" ? event.value : 0;
       return { type: "vad:probability" as const, value };
     }),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Context mutations (pure assignments)
-    // ─────────────────────────────────────────────────────────────────────────
     setSpeechStartTime: assign({ speechStartTime: () => Date.now() }),
     clearSpeechStartTime: assign({ speechStartTime: () => null }),
 
@@ -315,12 +281,8 @@ const agentMachineSetup = setup({
 
     setIsSpeaking: assign({ isSpeaking: () => true }),
     clearIsSpeaking: assign({ isSpeaking: () => false }),
-
-    // AI turn audio tracking
     setAITurnHadAudio: assign({ aiTurnHadAudio: () => true }),
     clearAITurnHadAudio: assign({ aiTurnHadAudio: () => false }),
-
-    // Abort controller management
     createAbortController: assign({ abortController: () => new AbortController() }),
 
     abortCurrentController: ({ context }) => {
@@ -335,10 +297,6 @@ const agentMachineSetup = setup({
       llmRef: () => null,
       ttsRef: () => null,
     }),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Actor communication (using sendTo for invoked actors)
-    // ─────────────────────────────────────────────────────────────────────────
     forwardAudioToSTT: sendTo("stt", ({ event }) => event),
     forwardAudioToVAD: sendTo("vad", ({ event }) => event),
     forwardToTurnDetector: sendTo("turnDetector", ({ event }) => event),
@@ -348,10 +306,6 @@ const agentMachineSetup = setup({
       }
       return { type: "_audio:output-chunk" as const, audio: new Float32Array(0) };
     }),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Dynamic actor spawning (LLM, TTS per turn/sentence)
-    // ─────────────────────────────────────────────────────────────────────────
     spawnLLM: assign({
       llmRef: ({ context, spawn, self }) => {
         const signal = context.abortController?.signal ?? new AbortController().signal;
@@ -397,20 +351,12 @@ const agentMachineSetup = setup({
         });
       },
     }),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Metrics tracking actions
-    // ─────────────────────────────────────────────────────────────────────────
-
-    // Session start
     recordSessionStart: assign({
       metrics: ({ context }) => ({
         ...context.metrics,
         sessionStartedAt: Date.now(),
       }),
     }),
-
-    // Human turn tracking
     recordHumanTurnStart: assign({
       metrics: ({ context }) => ({
         ...context.metrics,
@@ -422,16 +368,13 @@ const agentMachineSetup = setup({
     recordHumanTurnEnd: assign({
       metrics: ({ context, event }) => {
         const humanTurnEndTime = Date.now();
-        // Get speech duration from VAD event if available
         let speechDuration = context.metrics.humanSpeechDuration;
         if (event.type === "_vad:speech-end") {
           speechDuration = event.duration;
         } else if (context.metrics.humanTurnStartTime) {
-          // Fallback to calculated duration
           speechDuration = humanTurnEndTime - context.metrics.humanTurnStartTime;
         }
 
-        // Get transcript length from turn end event
         let transcriptLength = 0;
         if (event.type === "_turn:end") {
           transcriptLength = event.transcript.length;
@@ -456,13 +399,10 @@ const agentMachineSetup = setup({
         abandonedTurns: context.metrics.abandonedTurns + 1,
       }),
     }),
-
-    // AI turn tracking
     recordAITurnStart: assign({
       metrics: ({ context }) => ({
         ...context.metrics,
         aiTurnStartTime: Date.now(),
-        // Reset current turn counters
         currentTokenCount: 0,
         currentSentenceCount: 0,
         currentResponseLength: 0,
@@ -477,7 +417,6 @@ const agentMachineSetup = setup({
 
     recordFirstToken: assign({
       metrics: ({ context }) => {
-        // Only record first token time once
         if (context.metrics.firstTokenTime !== null) return context.metrics;
         return {
           ...context.metrics,
@@ -499,7 +438,6 @@ const agentMachineSetup = setup({
 
     recordFirstSentence: assign({
       metrics: ({ context }) => {
-        // Only record first sentence time once
         if (context.metrics.firstSentenceTime !== null) return context.metrics;
         return {
           ...context.metrics,
@@ -517,7 +455,6 @@ const agentMachineSetup = setup({
 
     recordFirstAudio: assign({
       metrics: ({ context }) => {
-        // Only record first audio time once
         if (context.metrics.firstAudioTime !== null) return context.metrics;
         return {
           ...context.metrics,
@@ -528,11 +465,11 @@ const agentMachineSetup = setup({
 
     recordAudioChunk: assign({
       metrics: ({ context, event }) => {
-        const samples = event.type === "_tts:chunk" ? event.audio.length : 0;
+        const bytes = event.type === "_tts:chunk" ? event.audio.byteLength : 0;
         return {
           ...context.metrics,
           currentAudioChunkCount: context.metrics.currentAudioChunkCount + 1,
-          currentAudioSamples: context.metrics.currentAudioSamples + samples,
+          currentAudioSamples: context.metrics.currentAudioSamples + bytes,
         };
       },
     }),
@@ -541,15 +478,11 @@ const agentMachineSetup = setup({
       metrics: ({ context }) => {
         const aiTurnEndTime = Date.now();
         const m = context.metrics;
-
-        // Calculate latencies
         const timeToFirstToken =
           m.firstTokenTime && m.aiTurnStartTime ? m.firstTokenTime - m.aiTurnStartTime : 0;
         const timeToFirstAudio =
           m.firstAudioTime && m.aiTurnStartTime ? m.firstAudioTime - m.aiTurnStartTime : 0;
         const turnDuration = m.aiTurnStartTime ? aiTurnEndTime - m.aiTurnStartTime : 0;
-
-        // Calculate speaking duration (from first audio to turn end)
         const speakingDuration = m.firstAudioTime ? aiTurnEndTime - m.firstAudioTime : 0;
 
         return {
@@ -591,8 +524,6 @@ const agentMachineSetup = setup({
         };
       },
     }),
-
-    // Reset turn metrics for next turn
     resetTurnMetrics: assign({
       metrics: ({ context }) => ({
         ...context.metrics,
@@ -615,19 +546,12 @@ const agentMachineSetup = setup({
   },
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MACHINE
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export const agentMachine = agentMachineSetup.createMachine({
   id: "agent",
   initial: "idle",
   context: ({ input }) => createInitialContext(input.config, input.audioStreamController),
 
   states: {
-    // ═══════════════════════════════════════════════════════════════════════
-    // IDLE STATE
-    // ═══════════════════════════════════════════════════════════════════════
     idle: {
       on: {
         "_agent:start": {
@@ -640,14 +564,8 @@ export const agentMachine = agentMachineSetup.createMachine({
         },
       },
     },
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // RUNNING STATE (Parallel regions)
-    // ═══════════════════════════════════════════════════════════════════════
     running: {
       type: "parallel",
-
-      // Invoke persistent actors at the running state level
       invoke: [
         {
           id: "stt",
@@ -686,22 +604,14 @@ export const agentMachine = agentMachineSetup.createMachine({
           }),
         },
       ],
-
-      // Global event handlers at running level
       on: {
         "_agent:stop": { target: "#agent.stopped" },
-
-        // Audio input forwarding
         "_audio:input": {
           actions: [{ type: "forwardAudioToSTT" }, { type: "forwardAudioToVAD" }],
         },
-
-        // Error handling - emit public error events
         "_stt:error": { actions: [{ type: "recordError" }, { type: "emitAgentError" }] },
         "_llm:error": { actions: [{ type: "recordError" }, { type: "emitAgentError" }] },
         "_tts:error": { actions: [{ type: "recordError" }, { type: "emitAgentError" }] },
-
-        // Filler phrase control (internal only, not exposed to users)
         "_filler:say": {
           actions: [{ type: "setIsSpeaking" }, { type: "spawnTTSFromFiller" }],
         },
@@ -713,18 +623,14 @@ export const agentMachine = agentMachineSetup.createMachine({
           ],
         },
       },
-
       states: {
-        // ─────────────────────────────────────────────────────────────────────
-        // LISTENING REGION: Handles user speech detection
-        // ─────────────────────────────────────────────────────────────────────
         listening: {
           initial: "idle",
 
           on: {
             "_vad:speech-start": [
               {
-                guard: "shouldBargeIn",
+                guard: "shouldInterrupt",
                 target: ".userSpeaking",
                 actions: [
                   { type: "recordAITurnInterrupted" },
@@ -752,7 +658,7 @@ export const agentMachine = agentMachineSetup.createMachine({
             ],
             "_stt:speech-start": [
               {
-                guard: "canBargeInFromSTT",
+                guard: "canInterruptFromSTT",
                 target: ".userSpeaking",
                 actions: [
                   { type: "recordAITurnInterrupted" },
@@ -798,15 +704,10 @@ export const agentMachine = agentMachineSetup.createMachine({
             },
           },
         },
-
-        // ─────────────────────────────────────────────────────────────────────
-        // TRANSCRIPTION REGION: Handles transcript events
-        // ─────────────────────────────────────────────────────────────────────
         transcribing: {
           on: {
             "_stt:transcript": [
               {
-                // Partial transcript - just emit and forward
                 guard: ({ event }) => event.type === "_stt:transcript" && !event.isFinal,
                 actions: [
                   { type: "emitHumanTurnTranscript" },
@@ -815,7 +716,6 @@ export const agentMachine = agentMachineSetup.createMachine({
                 ],
               },
               {
-                // Final transcript with turn detector - forward and wait
                 guard: ({ event, context }) =>
                   event.type === "_stt:transcript" &&
                   event.isFinal &&
@@ -823,7 +723,6 @@ export const agentMachine = agentMachineSetup.createMachine({
                 actions: [{ type: "emitHumanTurnTranscript" }, { type: "forwardToTurnDetector" }],
               },
               {
-                // Final transcript without turn detector - this IS the turn end
                 guard: ({ event, context }) =>
                   event.type === "_stt:transcript" && event.isFinal && context.turnSource === "stt",
                 actions: [
@@ -857,10 +756,6 @@ export const agentMachine = agentMachineSetup.createMachine({
             },
           },
         },
-
-        // ─────────────────────────────────────────────────────────────────────
-        // RESPONDING REGION: Handles LLM response generation
-        // ─────────────────────────────────────────────────────────────────────
         responding: {
           initial: "idle",
           states: {
@@ -887,7 +782,6 @@ export const agentMachine = agentMachineSetup.createMachine({
             },
             "_llm:complete": [
               {
-                // LLM complete but no audio was produced - emit turn end now
                 guard: "aiTurnHadNoAudio",
                 actions: [
                   { type: "recordAITurnComplete" },
@@ -897,16 +791,11 @@ export const agentMachine = agentMachineSetup.createMachine({
                 ],
               },
               {
-                // LLM complete with audio - wait for TTS to finish
                 actions: [{ type: "addAssistantMessageFromEvent" }],
               },
             ],
           },
         },
-
-        // ─────────────────────────────────────────────────────────────────────
-        // STREAMING REGION: Handles audio synthesis and streaming
-        // ─────────────────────────────────────────────────────────────────────
         streaming: {
           initial: "silent",
           states: {
@@ -948,17 +837,11 @@ export const agentMachine = agentMachineSetup.createMachine({
         },
       },
     },
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // STOPPED STATE (Final)
-    // ═══════════════════════════════════════════════════════════════════════
     stopped: {
       entry: [{ type: "abortCurrentController" }, { type: "emitAgentStopped" }],
       type: "final",
     },
   },
-
-  // Machine output when reaching final state
   output: ({ context }) => ({
     messages: context.messages,
     turnCount: context.messages.filter((m) => m.role === "user").length,

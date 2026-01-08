@@ -1,149 +1,147 @@
 import type { AgentMachineContext } from "../agent/context";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MESSAGE CONTENT PARTS
-// ═══════════════════════════════════════════════════════════════════════════════
+type DataContent = string | Uint8Array | ArrayBuffer | Buffer;
 
-/**
- * Text content part.
- */
+type JSONValue = null | string | number | boolean | JSONObject | JSONArray;
+type JSONObject = { [key: string]: JSONValue | undefined };
+type JSONArray = JSONValue[];
+type ProviderOptions = Record<string, JSONObject>;
+
 export interface TextPart {
   type: "text";
   text: string;
+  providerOptions?: ProviderOptions;
 }
 
-/**
- * Audio content part (for voice-specific features).
- * Can represent user speech audio or generated audio.
- */
-export interface AudioPart {
-  type: "audio";
-  /** Base64-encoded audio data or URL */
-  data: string;
-  /** Audio format (e.g., 'audio/wav', 'audio/mp3', 'audio/pcm') */
-  mediaType: string;
-  /** Optional transcript of the audio */
-  transcript?: string;
-}
-
-/**
- * Image content part (for multimodal scenarios).
- */
 export interface ImagePart {
   type: "image";
-  /** Base64-encoded image data or URL */
-  data: string;
-  /** Image format (e.g., 'image/png', 'image/jpeg') */
-  mediaType: string;
+  image: DataContent | URL;
+  mediaType?: string;
+  providerOptions?: ProviderOptions;
 }
 
-/**
- * File content part.
- */
 export interface FilePart {
   type: "file";
-  /** Base64-encoded file data or URL */
-  data: string;
-  /** File media type */
-  mediaType: string;
-  /** Optional filename */
+  data: DataContent | URL;
   filename?: string;
+  mediaType: string;
+  providerOptions?: ProviderOptions;
 }
 
-/**
- * Tool call part - represents an assistant's request to call a tool.
- */
+export interface ReasoningPart {
+  type: "reasoning";
+  text: string;
+  providerOptions?: ProviderOptions;
+}
+
 export interface ToolCallPart {
   type: "tool-call";
-  /** Unique identifier for this tool call */
   toolCallId: string;
-  /** Name of the tool to call */
   toolName: string;
-  /** Arguments to pass to the tool */
-  args: Record<string, unknown>;
+  input: unknown;
+  providerOptions?: ProviderOptions;
+  providerExecuted?: boolean;
 }
 
-/**
- * Tool result part - represents the result of a tool call.
- */
 export interface ToolResultPart {
   type: "tool-result";
-  /** ID of the tool call this result corresponds to */
   toolCallId: string;
-  /** Name of the tool that was called */
   toolName: string;
-  /** The result returned by the tool */
-  result: unknown;
-  /** Whether the tool call resulted in an error */
-  isError?: boolean;
+  output: ToolResultOutput;
+  providerOptions?: ProviderOptions;
 }
 
-/**
- * Union of all content part types.
- */
-export type ContentPart =
-  | TextPart
-  | AudioPart
-  | ImagePart
-  | FilePart
-  | ToolCallPart
-  | ToolResultPart;
+export type ToolResultOutput =
+  | { type: "text"; value: string; providerOptions?: ProviderOptions }
+  | { type: "json"; value: JSONValue; providerOptions?: ProviderOptions }
+  | { type: "execution-denied"; reason?: string; providerOptions?: ProviderOptions }
+  | { type: "error-text"; value: string; providerOptions?: ProviderOptions }
+  | { type: "error-json"; value: JSONValue; providerOptions?: ProviderOptions }
+  | { type: "content"; value: ToolResultContentValue[] };
 
-/**
- * Message content can be a simple string or an array of content parts.
- */
-export type MessageContent = string | ContentPart[];
+type ToolResultContentValue =
+  | { type: "text"; text: string; providerOptions?: ProviderOptions }
+  | {
+      type: "file-data";
+      data: string;
+      mediaType: string;
+      filename?: string;
+      providerOptions?: ProviderOptions;
+    }
+  | { type: "file-url"; url: string; providerOptions?: ProviderOptions }
+  | { type: "file-id"; fileId: string | Record<string, string>; providerOptions?: ProviderOptions }
+  | { type: "image-data"; data: string; mediaType: string; providerOptions?: ProviderOptions }
+  | { type: "image-url"; url: string; providerOptions?: ProviderOptions }
+  | {
+      type: "image-file-id";
+      fileId: string | Record<string, string>;
+      providerOptions?: ProviderOptions;
+    }
+  | { type: "custom"; providerOptions?: ProviderOptions };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MESSAGE TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
+export interface ToolApprovalRequest {
+  type: "tool-approval-request";
+  approvalId: string;
+  toolCallId: string;
+}
 
-/**
- * System message - provides instructions/context to the model.
- */
+export interface ToolApprovalResponse {
+  type: "tool-approval-response";
+  approvalId: string;
+  approved: boolean;
+  reason?: string;
+  providerExecuted?: boolean;
+}
+
+export type UserContent = string | Array<TextPart | ImagePart | FilePart>;
+export type AssistantContent =
+  | string
+  | Array<
+      TextPart | FilePart | ReasoningPart | ToolCallPart | ToolResultPart | ToolApprovalRequest
+    >;
+export type ToolContent = Array<ToolResultPart | ToolApprovalResponse>;
+
 export interface SystemMessage {
   role: "system";
   content: string;
+  providerOptions?: ProviderOptions;
 }
 
-/**
- * User message - represents input from the user.
- * Content can include text, audio, images, or files.
- */
 export interface UserMessage {
   role: "user";
-  content: string | Array<TextPart | AudioPart | ImagePart | FilePart>;
+  content: UserContent;
+  providerOptions?: ProviderOptions;
 }
 
-/**
- * Assistant message - represents output from the AI.
- * Content can include text and tool calls.
- */
 export interface AssistantMessage {
   role: "assistant";
-  content: string | Array<TextPart | ToolCallPart>;
+  content: AssistantContent;
+  providerOptions?: ProviderOptions;
 }
 
-/**
- * Tool message - represents tool execution results.
- */
 export interface ToolMessage {
   role: "tool";
-  content: ToolResultPart[];
+  content: ToolContent;
+  providerOptions?: ProviderOptions;
 }
 
 /**
- * Union of all message types.
+ * Union of all message types in a conversation.
+ *
+ * Messages form the conversation history that is passed to the LLM provider.
+ * The agent automatically manages the message history as the conversation progresses.
  */
 export type Message = SystemMessage | UserMessage | AssistantMessage | ToolMessage;
 
 /**
- * Output produced when the agent reaches its final state.
- * Provides a summary of the conversation.
+ * Output produced when the agent reaches its final state (status === 'done').
+ *
+ * Provides a summary of the conversation including all messages and turn count.
+ * Available via `agent.getSnapshot().output` when the agent is done.
  */
 export interface AgentMachineOutput {
-  /** All messages from the conversation */
+  /** All messages from the conversation (system, user, assistant, tool) */
   messages: AgentMachineContext["messages"];
-  /** Total number of turns (user messages) */
+  /** Total number of turns (user messages) in the conversation */
   turnCount: number;
 }

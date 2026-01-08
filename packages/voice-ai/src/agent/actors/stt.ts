@@ -1,34 +1,39 @@
 /**
  * STT (Speech-to-Text) Actor
  *
- * Handles speech recognition via the STT provider.
- * Receives audio input and emits transcript events.
+ * XState callback actor that handles speech recognition via the STT provider.
+ * This actor is responsible for:
+ * - Starting the STT provider with the configured audio format
+ * - Receiving audio input chunks from the agent machine
+ * - Forwarding audio to the STT provider for transcription
+ * - Emitting transcript events (partial and final) as they arrive
+ * - Emitting VAD events (speech start/end) if the STT provider supports them
+ * - Handling errors from the STT provider
+ * - Cleaning up the STT provider when stopped
+ *
+ * The actor acts as a bridge between the agent state machine and the STT provider,
+ * translating audio input into transcript events that drive the conversation flow.
+ *
+ * @module agent/actors/stt
  */
 
 import { fromCallback } from "xstate";
-import type { AgentConfig, AudioFormat } from "../../types/config";
+import type { NormalizedAgentConfig } from "../../types/config";
 import type { MachineEvent } from "../../types/events";
-
-/** Default audio format if not specified in config */
-const DEFAULT_AUDIO_FORMAT: AudioFormat = {
-  sampleRate: 24000,
-  channels: 1,
-  bitDepth: 32,
-};
 
 export const sttActor = fromCallback<
   MachineEvent,
   {
-    config: AgentConfig;
+    config: NormalizedAgentConfig;
     abortSignal: AbortSignal;
   }
 >(({ sendBack, receive, input }) => {
   const { config, abortSignal } = input;
   const provider = config.stt;
-  const audioFormat = config.audioFormat ?? DEFAULT_AUDIO_FORMAT;
+  const inputFormat = config.audio.input;
 
   provider.start({
-    audioFormat,
+    audioFormat: inputFormat,
     transcript: (text, isFinal) => {
       sendBack({ type: "_stt:transcript", text, isFinal });
     },

@@ -8,14 +8,21 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
-import type { STTContext, STTProvider } from "../../../src";
+import type { STTContext, STTProvider, NormalizedAgentConfig } from "../../../src";
 import { sttActor } from "../../../src/agent/actors/stt";
 import {
   DEFAULT_AUDIO_FORMAT,
+  DEFAULT_AUDIO_CONFIG,
   createAudioChunk,
   mockLLMProvider,
   mockTTSProvider,
 } from "../../helpers";
+
+const SUPPORTED_INPUT_FORMATS = [
+  { encoding: "linear16", sampleRate: 16000, channels: 1 },
+  { encoding: "linear16", sampleRate: 24000, channels: 1 },
+  { encoding: "mulaw", sampleRate: 8000, channels: 1 },
+] as const;
 
 describe("sttActor", () => {
   const createTestSTTProvider = () => {
@@ -27,7 +34,13 @@ describe("sttActor", () => {
     const sendAudioMock = vi.fn();
 
     const provider: STTProvider = {
-      metadata: { name: "TestSTT", version: "1.0.0", type: "stt" },
+      metadata: {
+        name: "TestSTT",
+        version: "1.0.0",
+        type: "stt",
+        supportedInputFormats: SUPPORTED_INPUT_FORMATS,
+        defaultInputFormat: SUPPORTED_INPUT_FORMATS[0],
+      },
       start: startMock,
       stop: stopMock,
       sendAudio: sendAudioMock,
@@ -40,11 +53,11 @@ describe("sttActor", () => {
     };
   };
 
-  const createTestConfig = (sttProvider: STTProvider) => ({
+  const createTestConfig = (sttProvider: STTProvider): NormalizedAgentConfig => ({
     stt: sttProvider,
     llm: mockLLMProvider,
     tts: mockTTSProvider,
-    audioFormat: DEFAULT_AUDIO_FORMAT,
+    audio: DEFAULT_AUDIO_CONFIG,
   });
 
   describe("initialization", () => {
@@ -125,7 +138,7 @@ describe("sttActor", () => {
 
       actor.start();
 
-      const audioChunk = createAudioChunk([0.1, 0.2, 0.3]);
+      const audioChunk = createAudioChunk();
       actor.send({ type: "_audio:input", audio: audioChunk });
 
       expect(stt.mocks.sendAudio).toHaveBeenCalledWith(audioChunk);
@@ -142,9 +155,9 @@ describe("sttActor", () => {
 
       actor.start();
 
-      const chunk1 = createAudioChunk([0.1, 0.2]);
-      const chunk2 = createAudioChunk([0.3, 0.4]);
-      const chunk3 = createAudioChunk([0.5, 0.6]);
+      const chunk1 = createAudioChunk();
+      const chunk2 = createAudioChunk();
+      const chunk3 = createAudioChunk();
 
       actor.send({ type: "_audio:input", audio: chunk1 });
       actor.send({ type: "_audio:input", audio: chunk2 });

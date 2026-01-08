@@ -33,11 +33,14 @@ export {
   createAudioChunk,
   createNoiseChunk,
   createSilenceChunk,
-  createSineWaveChunk,
   // Audio formats
+  DEFAULT_AUDIO_CONFIG,
   DEFAULT_AUDIO_FORMAT,
+  HIGH_QUALITY_AUDIO_CONFIG,
   HIGH_QUALITY_AUDIO_FORMAT,
+  LOW_QUALITY_AUDIO_CONFIG,
   LOW_QUALITY_AUDIO_FORMAT,
+  MIXED_AUDIO_CONFIG,
   multiTurnConversation,
   singleAssistantMessage,
   // Message fixtures

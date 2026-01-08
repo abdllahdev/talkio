@@ -32,9 +32,9 @@ describe("audio streaming", () => {
       await tick();
 
       // Send audio chunks from microphone
-      const chunk1 = createAudioChunk([0.1, 0.2, 0.3]);
-      const chunk2 = createAudioChunk([0.4, 0.5, 0.6]);
-      const chunk3 = createAudioChunk([0.7, 0.8, 0.9]);
+      const chunk1 = createAudioChunk();
+      const chunk2 = createAudioChunk();
+      const chunk3 = createAudioChunk();
 
       agent.sendAudio(chunk1);
       agent.sendAudio(chunk2);
@@ -64,7 +64,7 @@ describe("audio streaming", () => {
       // Send many audio chunks
       const chunkCount = 100;
       for (let i = 0; i < chunkCount; i++) {
-        agent.sendAudio(createAudioChunk([i * 0.01]));
+        agent.sendAudio(createAudioChunk());
       }
 
       expect(stt.mocks.sendAudio).toHaveBeenCalledTimes(chunkCount);
@@ -114,8 +114,8 @@ describe("audio streaming", () => {
 
       // TTS produces audio
       const ttsCtx = tts.getCtx();
-      const audioChunk1 = createAudioChunk([0.1, 0.2, 0.3]);
-      const audioChunk2 = createAudioChunk([0.4, 0.5, 0.6]);
+      const audioChunk1 = createAudioChunk();
+      const audioChunk2 = createAudioChunk();
       ttsCtx.audioChunk(audioChunk1);
       ttsCtx.audioChunk(audioChunk2);
       await tick();
@@ -129,7 +129,7 @@ describe("audio streaming", () => {
       agent.stop();
     });
 
-    it("audio chunks are Float32Arrays", async () => {
+    it("audio chunks are ArrayBuffers", async () => {
       const events: AgentEvent[] = [];
 
       const stt = createCapturingSTTProvider();
@@ -156,58 +156,70 @@ describe("audio streaming", () => {
       await tick();
 
       const ttsCtx = tts.getCtx();
-      ttsCtx.audioChunk(createAudioChunk([0.1, 0.2]));
+      ttsCtx.audioChunk(createAudioChunk());
       await tick();
 
       const audioEvents = findEvents(events, "ai-turn:audio");
-      expect(audioEvents[0].audio).toBeInstanceOf(Float32Array);
+      expect(audioEvents[0].audio).toBeInstanceOf(ArrayBuffer);
 
       agent.stop();
     });
   });
 
   describe("audio format", () => {
-    it("passes audio format to STT provider", async () => {
+    it("passes input audio format to STT provider", async () => {
       const stt = createCapturingSTTProvider();
 
-      const customFormat = {
+      const inputFormat = {
         sampleRate: 16000,
         channels: 1,
-        bitDepth: 16,
+        encoding: "linear16",
+      } satisfies AudioFormat;
+
+      const outputFormat = {
+        sampleRate: 24000,
+        channels: 1,
+        encoding: "linear16",
       } satisfies AudioFormat;
 
       const agent = createAgent({
         stt: stt.provider,
         llm: mockLLMProvider,
         tts: mockTTSProvider,
-        audioFormat: customFormat,
+        audio: { input: inputFormat, output: outputFormat },
       });
 
       agent.start();
       await tick();
 
       const ctx = stt.getCtx();
-      expect(ctx.audioFormat).toEqual(customFormat);
+      expect(ctx.audioFormat).toEqual(inputFormat);
 
       agent.stop();
     });
 
-    it("passes audio format to TTS provider", async () => {
+    it("passes output audio format to TTS provider", async () => {
       const stt = createCapturingSTTProvider();
       const llm = createCapturingLLMProvider();
       const tts = createCapturingTTSProvider();
 
-      const customFormat = {
-        sampleRate: 48000,
-        channels: 2,
-        bitDepth: 32,
+      const inputFormat = {
+        sampleRate: 16000,
+        channels: 1,
+        encoding: "linear16",
+      } satisfies AudioFormat;
+
+      const outputFormat = {
+        sampleRate: 24000,
+        channels: 1,
+        encoding: "linear16",
       } satisfies AudioFormat;
 
       const agent = createAgent({
         stt: stt.provider,
         llm: llm.provider,
         tts: tts.provider,
-        audioFormat: customFormat,
+        audio: { input: inputFormat, output: outputFormat },
       });
 
       agent.start();
@@ -224,7 +236,7 @@ describe("audio streaming", () => {
       await tick();
 
       const ttsCtx = tts.getCtx();
-      expect(ttsCtx.audioFormat).toEqual(customFormat);
+      expect(ttsCtx.audioFormat).toEqual(outputFormat);
 
       agent.stop();
     });

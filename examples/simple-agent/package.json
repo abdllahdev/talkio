@@ -1,0 +1,21 @@
+{
+  "name": "@voice-ai/simple-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Simple voice agent example using Deepgram and AI SDK",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^3.0.7",
+    "@voice-ai/deepgram": "workspace:*",
+    "ai": "^6.0.22",
+    "voice-ai": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.7.2"
+  }
+}

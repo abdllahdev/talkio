@@ -1,9 +1,19 @@
 /**
  * Audio Streamer Actor
  *
- * Internal actor that handles audio output streaming.
- * Receives audio chunks and pushes them to the ReadableStream controller.
- * Handles cancellation via abort signal for proper barge-in support.
+ * XState callback actor that handles audio output streaming to the agent's audio stream.
+ * This actor is responsible for:
+ * - Receiving audio chunk events from the TTS provider
+ * - Enqueuing audio chunks to the ReadableStream controller
+ * - Managing the audio stream lifecycle (start/end events)
+ * - Handling abort signals to gracefully close the stream
+ * - Ignoring chunks if the stream is already closed
+ *
+ * The actor acts as a bridge between the agent's internal audio events and
+ * the public ReadableStream API, allowing consumers to read audio chunks
+ * as they're produced by the TTS provider.
+ *
+ * @module agent/actors/streamer
  */
 
 import { fromCallback } from "xstate";
@@ -12,7 +22,7 @@ import type { MachineEvent } from "../../types/events";
 export const audioStreamerActor = fromCallback<
   MachineEvent,
   {
-    audioStreamController: ReadableStreamDefaultController<Float32Array> | null;
+    audioStreamController: ReadableStreamDefaultController<ArrayBuffer> | null;
     abortSignal: AbortSignal;
   }
 >(({ sendBack, receive, input }) => {
@@ -37,7 +47,7 @@ export const audioStreamerActor = fromCallback<
         try {
           audioStreamController.enqueue(event.audio);
         } catch {
-          // Stream may be closed, ignore
+          // Ignore if stream is closed
         }
       }
     }

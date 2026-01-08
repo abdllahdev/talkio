@@ -1,20 +1,16 @@
 /**
  * Provider Types
  *
- * These interfaces define the contracts that provider packages must implement.
- * Each provider receives a context object with emit methods (to report events) and
- * control methods (to trigger orchestration features).
+ * Defines the type system and contracts for voice AI providers.
  *
- * Provider packages (e.g., @voice-ai/provider-deepgram) implement these interfaces
- * via factory functions like createDeepgramSTT({ apiKey, model }).
+ * Provider packages (e.g., `@voice-ai/deepgram`) implement these interfaces
+ * via factory functions like `createDeepgramSTT({ apiKey, model })`.
+ *
+ * @module providers/types
  */
 
+import type { AudioFormat, NormalizedAudioFormat } from "../audio/types";
 import type { Message } from "../types/common";
-import type { AudioFormat } from "../types/config";
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PROVIDER METADATA
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Provider type identifier.
@@ -54,20 +50,16 @@ export interface BaseProvider {
   readonly metadata: ProviderMetadata;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// STT (Speech-to-Text) PROVIDER
-// ═══════════════════════════════════════════════════════════════════════════════
-
 /**
  * Context provided to STT providers.
  * Contains emit methods for reporting transcription events.
  */
 export interface STTContext {
   /**
-   * Audio format configuration.
+   * Audio format configuration (always normalized with all fields defined).
    * STT providers should expect audio input in this format.
    */
-  audioFormat: AudioFormat;
+  audioFormat: NormalizedAudioFormat;
 
   /**
    * Report a transcript update.
@@ -101,24 +93,74 @@ export interface STTContext {
 }
 
 /**
- * Speech-to-Text provider interface.
- * Provider packages implement this to integrate STT services.
+ * STT provider metadata with supported input formats.
+ * The InputFormat type parameter carries format information for compile-time validation.
  *
  * @example
  * ```typescript
- * import { createDeepgramSTT } from '@voice-ai/provider-deepgram';
+ * // Provider declares its supported and default formats
+ * const metadata: STTProviderMetadata<DeepgramInputFormat> = {
+ *   name: "Deepgram",
+ *   version: "1.0.0",
+ *   type: "stt",
+ *   supportedInputFormats: [
+ *     { encoding: "linear16", sampleRate: 16000, channels: 1 },
+ *     { encoding: "linear16", sampleRate: 24000, channels: 1 },
+ *   ] as const,
+ *   defaultInputFormat: { encoding: "linear16", sampleRate: 16000, channels: 1 },
+ * };
+ * ```
+ */
+export interface STTProviderMetadata<
+  InputFormat extends AudioFormat = AudioFormat,
+> extends ProviderMetadata {
+  type: "stt";
+  /**
+   * Audio formats this provider accepts as input.
+   * Used for runtime validation and documentation.
+   */
+  supportedInputFormats: readonly InputFormat[];
+  /**
+   * Default input format used when audio config is not specified.
+   * This format is used if the user doesn't provide `audio.input` in the agent config.
+   */
+  defaultInputFormat: InputFormat;
+}
+
+/**
+ * Speech-to-Text provider interface.
+ * Generic over InputFormat to enable compile-time audio format validation.
  *
+ * @typeParam InputFormat - The audio format(s) this provider accepts
+ *
+ * @example
+ * ```typescript
+ * import { createDeepgramSTT } from '@voice-ai/deepgram';
+ *
+ * // DeepgramSTT is typed as STTProvider<DeepgramInputFormat>
  * const stt = createDeepgramSTT({
  *   apiKey: process.env.DEEPGRAM_API_KEY,
  *   model: 'nova-2',
- *   language: 'en-US',
  * });
+ *
+ * // TypeScript will error if audio.input doesn't match DeepgramInputFormat
+ * createAgent({ stt, tts, llm, audio: { input: ..., output: ... } });
  * ```
  */
-export interface STTProvider extends BaseProvider {
+export interface STTProvider<InputFormat extends AudioFormat = AudioFormat> extends BaseProvider {
+  /**
+   * Provider metadata including supported input formats.
+   *
+   * Contains provider name, version, type, and the audio formats this provider accepts.
+   * Used by the agent to validate audio configuration and select default formats.
+   */
+  readonly metadata: STTProviderMetadata<InputFormat>;
+
   /**
    * Start the STT session.
-   * @param ctx - Context with emit methods and abort signal
+   * Initialize your STT connection and use context methods to report events.
+   *
+   * @param ctx - Context with emit methods, audio format, and abort signal
    */
   start(ctx: STTContext): void;
 
@@ -129,14 +171,28 @@ export interface STTProvider extends BaseProvider {
 
   /**
    * Send audio data to be transcribed.
-   * @param audio - Raw audio samples
+   * Audio is in the format specified by `ctx.audioFormat` from `start()`.
+   *
+   * @param audio - Raw audio bytes (ArrayBuffer) in the configured input format
    */
-  sendAudio(audio: Float32Array): void;
+  sendAudio(audio: ArrayBuffer): void;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// LLM (Language Model) PROVIDER
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * Extract the input format type from an STT provider.
+ *
+ * Utility type that extracts the `InputFormat` type parameter from an STT provider.
+ * Used internally for compile-time audio format validation.
+ *
+ * @typeParam P - The STT provider type
+ *
+ * @example
+ * ```typescript
+ * type MySTTFormat = ExtractSTTInputFormat<typeof mySTTProvider>;
+ * // MySTTFormat is the input format type that mySTTProvider accepts
+ * ```
+ */
+export type ExtractSTTInputFormat<P> = P extends STTProvider<infer F> ? F : never;
 
 /**
  * Context provided to LLM providers and functions.
@@ -222,9 +278,10 @@ export interface LLMContext {
 export interface LLMProvider extends BaseProvider {
   /**
    * Generate a response for the given messages.
-   * Cancellation is handled via `ctx.signal` (AbortSignal).
-   * @param messages - Conversation history
-   * @param ctx - Context with emit and control methods
+   * Stream tokens and sentences using context methods.
+   *
+   * @param messages - Conversation history (system, user, assistant, tool messages)
+   * @param ctx - Context with emit methods, conversation controls, and abort signal
    */
   generate(messages: Message[], ctx: LLMContext): void;
 }
@@ -263,6 +320,21 @@ export type LLMInput = LLMProvider | LLMFunction;
 
 /**
  * Type guard to check if an LLM input is a provider object (not a function).
+ *
+ * Use this to narrow the type when you need to access provider-specific properties
+ * like `metadata` or when you need to distinguish between provider objects and functions.
+ *
+ * @param llm - The LLM input to check
+ * @returns `true` if the input is an LLMProvider object, `false` if it's a function
+ *
+ * @example
+ * ```typescript
+ * if (isLLMProvider(myLLM)) {
+ *   console.log("Provider name:", myLLM.metadata.name);
+ * } else {
+ *   // myLLM is a function
+ * }
+ * ```
  */
 export function isLLMProvider(llm: LLMInput): llm is LLMProvider {
   return typeof llm === "object" && llm !== null && "generate" in llm && "metadata" in llm;
@@ -270,14 +342,27 @@ export function isLLMProvider(llm: LLMInput): llm is LLMProvider {
 
 /**
  * Type guard to check if an LLM input is a function.
+ *
+ * Use this to narrow the type when you need to call the function directly
+ * or when you need to distinguish between provider objects and functions.
+ *
+ * @param llm - The LLM input to check
+ * @returns `true` if the input is an LLMFunction, `false` if it's a provider object
+ *
+ * @example
+ * ```typescript
+ * if (isLLMFunction(myLLM)) {
+ *   // myLLM is a function that can be called directly
+ *   myLLM(ctx);
+ * } else {
+ *   // myLLM is a provider object
+ *   myLLM.generate(messages, ctx);
+ * }
+ * ```
  */
 export function isLLMFunction(llm: LLMInput): llm is LLMFunction {
   return typeof llm === "function";
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TTS (Text-to-Speech) PROVIDER
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Context provided to TTS providers.
@@ -285,16 +370,17 @@ export function isLLMFunction(llm: LLMInput): llm is LLMFunction {
  */
 export interface TTSContext {
   /**
-   * Audio format configuration.
+   * Audio format configuration (always normalized with all fields defined).
    * TTS providers should produce audio output in this format.
    */
-  audioFormat: AudioFormat;
+  audioFormat: NormalizedAudioFormat;
 
   /**
    * Report an audio chunk (for streaming TTS).
-   * @param audio - Audio samples
+   * Audio should be in the configured output format.
+   * @param audio - Raw audio bytes
    */
-  audioChunk(audio: Float32Array): void;
+  audioChunk(audio: ArrayBuffer): void;
 
   /**
    * Report that synthesis is complete.
@@ -313,35 +399,94 @@ export interface TTSContext {
 }
 
 /**
- * Text-to-Speech provider interface.
- * Provider packages implement this to integrate TTS services.
+ * TTS provider metadata with supported output formats.
+ * The OutputFormat type parameter carries format information for compile-time validation.
  *
- * Cancellation is handled via `ctx.signal` (AbortSignal). Providers should
- * listen to the signal and clean up when aborted.
+ * @example
+ * ```typescript
+ * // Provider declares its supported and default formats
+ * const metadata: TTSProviderMetadata<DeepgramOutputFormat> = {
+ *   name: "Deepgram",
+ *   version: "1.0.0",
+ *   type: "tts",
+ *   supportedOutputFormats: [
+ *     { encoding: "linear16", sampleRate: 24000, channels: 1 },
+ *     { encoding: "linear16", sampleRate: 48000, channels: 1 },
+ *   ] as const,
+ *   defaultOutputFormat: { encoding: "linear16", sampleRate: 24000, channels: 1 },
+ * };
+ * ```
+ */
+export interface TTSProviderMetadata<
+  OutputFormat extends AudioFormat = AudioFormat,
+> extends ProviderMetadata {
+  type: "tts";
+  /**
+   * Audio formats this provider can output.
+   * Used for runtime validation and documentation.
+   */
+  supportedOutputFormats: readonly OutputFormat[];
+  /**
+   * Default output format used when audio config is not specified.
+   * This format is used if the user doesn't provide `audio.output` in the agent config.
+   */
+  defaultOutputFormat: OutputFormat;
+}
+
+/**
+ * Text-to-Speech provider interface.
+ * Generic over OutputFormat to enable compile-time audio format validation.
+ *
+ * @typeParam OutputFormat - The audio format(s) this provider can output
  *
  * @example
  * ```typescript
  * import { createElevenLabsTTS } from '@voice-ai/provider-elevenlabs';
  *
+ * // ElevenLabsTTS is typed as TTSProvider<ElevenLabsOutputFormat>
  * const tts = createElevenLabsTTS({
  *   apiKey: process.env.ELEVENLABS_API_KEY,
  *   voiceId: 'rachel',
  * });
+ *
+ * // TypeScript will error if audio.output doesn't match ElevenLabsOutputFormat
+ * createAgent({ stt, tts, llm, audio: { input: ..., output: ... } });
  * ```
  */
-export interface TTSProvider extends BaseProvider {
+export interface TTSProvider<OutputFormat extends AudioFormat = AudioFormat> extends BaseProvider {
+  /**
+   * Provider metadata including supported output formats.
+   *
+   * Contains provider name, version, type, and the audio formats this provider can output.
+   * Used by the agent to validate audio configuration and select default formats.
+   */
+  readonly metadata: TTSProviderMetadata<OutputFormat>;
+
   /**
    * Synthesize text to audio.
-   * Cancellation is handled via `ctx.signal` (AbortSignal).
-   * @param text - Text to synthesize
-   * @param ctx - Context with emit methods
+   * Stream audio chunks as they're produced using context methods.
+   *
+   * @param text - Text to synthesize into speech
+   * @param ctx - Context with emit methods, audio format, and abort signal
    */
   synthesize(text: string, ctx: TTSContext): void;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// VAD (Voice Activity Detection) PROVIDER - OPTIONAL
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * Extract the output format type from a TTS provider.
+ *
+ * Utility type that extracts the `OutputFormat` type parameter from a TTS provider.
+ * Used internally for compile-time audio format validation.
+ *
+ * @typeParam P - The TTS provider type
+ *
+ * @example
+ * ```typescript
+ * type MyTTSFormat = ExtractTTSOutputFormat<typeof myTTSProvider>;
+ * // MyTTSFormat is the output format type that myTTSProvider produces
+ * ```
+ */
+export type ExtractTTSOutputFormat<P> = P extends TTSProvider<infer F> ? F : never;
 
 /**
  * Context provided to VAD providers.
@@ -375,7 +520,7 @@ export interface VADContext {
 /**
  * Voice Activity Detection provider interface.
  * Optional - if not provided, STT's built-in VAD is used as fallback.
- * Useful for client-side VAD (like Silero) for faster barge-in detection.
+ * Useful for client-side VAD (like Silero) for faster interruption detection.
  *
  * @example
  * ```typescript
@@ -401,14 +546,10 @@ export interface VADProvider extends BaseProvider {
 
   /**
    * Process an audio frame.
-   * @param audio - Audio samples to analyze
+   * @param audio - Audio data in the configured input format
    */
-  processAudio(audio: Float32Array): void;
+  processAudio(audio: ArrayBuffer): void;
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TURN DETECTOR PROVIDER - OPTIONAL
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Context provided to Turn Detector providers.

@@ -7,12 +7,12 @@
 import { describe, expect, it } from "vitest";
 import { createInitialContext } from "../../../src/agent/context";
 import {
-  mockSTTProvider,
+  DEFAULT_AUDIO_CONFIG,
   mockLLMProvider,
+  mockSTTProvider,
   mockTTSProvider,
-  mockVADProvider,
   mockTurnDetectorProvider,
-  DEFAULT_AUDIO_FORMAT,
+  mockVADProvider,
 } from "../../helpers";
 
 describe("createInitialContext", () => {
@@ -20,6 +20,7 @@ describe("createInitialContext", () => {
     stt: mockSTTProvider,
     llm: mockLLMProvider,
     tts: mockTTSProvider,
+    audio: DEFAULT_AUDIO_CONFIG,
   };
 
   describe("basic initialization", () => {
@@ -47,7 +48,7 @@ describe("createInitialContext", () => {
     });
 
     it("stores audioStreamController", () => {
-      const mockController = {} as ReadableStreamDefaultController<Float32Array>;
+      const mockController = {} as ReadableStreamDefaultController<ArrayBuffer>;
       const context = createInitialContext(baseConfig, mockController);
 
       expect(context.audioStreamController).toBe(mockController);
@@ -120,8 +121,7 @@ describe("createInitialContext", () => {
         ...baseConfig,
         vad: mockVADProvider,
         turnDetector: mockTurnDetectorProvider,
-        audioFormat: DEFAULT_AUDIO_FORMAT,
-        bargeIn: {
+        interruption: {
           enabled: true,
           minDurationMs: 100,
         },

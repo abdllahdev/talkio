@@ -1,83 +1,82 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-This is a TypeScript monorepo for `voice-ai`, an orchestration library for building real-time voice AI agents. It coordinates Speech-to-Text (STT), Language Models (LLM), Text-to-Speech (TTS), and audio playback using XState's actor model.
-
-**Key insight**: This is pure orchestration—users bring their own providers via factory functions. The library provides zero STT/LLM/TTS implementations.
+Development guide for the voice-ai monorepo.
 
 ## Monorepo Structure
 
 ```
 voice-ai/
 ├── packages/
-│   └── voice-ai/          # Main orchestration library
+│   ├── voice-ai/        # Core orchestration library
+│   └── deepgram/        # @voice-ai/deepgram provider
 ├── tooling/
-│   └── tsconfig/          # Shared TypeScript configs
-├── turbo.json             # Turborepo task configuration
-└── package.json           # Root workspace package
+│   └── tsconfig/        # Shared TypeScript configs
+├── turbo.json           # Turborepo configuration
+└── package.json         # Root workspace
 ```
 
-For detailed package architecture, see `packages/voice-ai/claude.md`.
+Each package has its own `CLAUDE.md` with package-specific guidance.
 
 ## Commands
 
-All commands run from the root directory via Turborepo:
+Run from root directory:
 
 ```bash
-# Development
-bun run dev              # Watch mode for all packages
-bun run build            # Build all packages
-
-# Testing
-bun run test             # Run all tests once
-bun run test:watch       # Run tests in watch mode
-
-# Code quality
-bun run lint             # Run oxlint
-bun run format           # Format with oxfmt
-bun run format:check     # Check formatting
-bun run typecheck        # TypeScript type checking
-
-# Cleanup
-bun run clean            # Remove node_modules, dist, .turbo
+bun run dev           # Watch mode
+bun run build         # Build all packages
+bun run test          # Run tests
+bun run test:watch    # Watch mode tests
+bun run typecheck     # Type checking
+bun run lint          # oxlint
+bun run format        # oxfmt
+bun run clean         # Remove dist, node_modules, .turbo
 ```
 
-To run commands in a specific package:
+Run in specific package:
 
 ```bash
 cd packages/voice-ai && bun run test
-```
-
-To run a single test file:
-
-```bash
 cd packages/voice-ai && bun vitest run test/unit/actors/stt.test.ts
 ```
 
 ## Code Style
 
-- **Linter**: oxlint (see `.oxlintrc.json`)
-- **Formatter**: oxfmt (see `.oxfmtrc.json`)
-- 2-space indentation, double quotes, semicolons, trailing commas
-- Strict TypeScript with `noImplicitAny`, `noUnusedLocals`, `noUnusedParameters`
+- **Linter**: oxlint (`.oxlintrc.json`)
+- **Formatter**: oxfmt (`.oxfmtrc.json`)
+- 2-space indentation
+- Double quotes
+- Semicolons required
+- Trailing commas
 
-## Architecture Summary
+## TypeScript
 
-- **Actor Model**: Each component (STT, LLM, TTS, VAD, turn detector, streamer) runs as an isolated XState actor
-- **Two-layer Event System**:
-  - Public events (`category:action`) exposed to users via `onEvent`
-  - Internal events (`_category:action`) for machine-only communication
-- **Provider Pattern**: Factory functions like `createDeepgramSTT({ apiKey })` return provider objects with metadata and lifecycle methods
-- **Audio Format**: All audio is `Float32Array`
-- **Message Immutability**: Never mutate arrays; always create new ones
+- Strict mode enabled
+- `noImplicitAny`, `noUnusedLocals`, `noUnusedParameters`
+- Use `type` for aliases, `interface` for extensible shapes
+- Prefer discriminated unions over string unions
+- Avoid `any` — use `unknown` with type guards
 
-## Key Conventions
+## Naming
 
-- Events use discriminated unions for type safety
-- Actors emit internal events (prefixed with `_`); machine translates to public events
-- Providers receive context objects with emit methods and AbortSignal
-- AbortErrors are silently ignored (expected during cancellation)
-- Types use `PascalCase`, variables use `camelCase`
+- Types: `PascalCase`
+- Variables/functions: `camelCase`
+- Files: `kebab-case.ts`
+- Test files: `*.test.ts`
+
+## Testing
+
+- Framework: Vitest
+- Unit tests: `test/unit/`
+- Integration tests: `test/integration/`
+- Use `vi.waitFor()` for async assertions
+
+## Comments
+
+**STRICT RULES - NEVER VIOLATE:**
+
+- **NO decorative comments** — no banners, separators, or visual decorations
+- **NO inline comments about changes** — never add comments like "// Changed this", "// Updated", "// Fixed", etc.
+- **NO obvious comments** — don't comment what the code already clearly shows
+- Comments should ONLY explain **why**, not **what** or **how**
+- Only add comments when they provide non-obvious context or explain complex logic
+- Prefer self-documenting code over comments

@@ -1,33 +1,62 @@
 /**
  * voice-ai
  *
- * A TypeScript package for building voice AI agents.
- * Provides orchestration for STT, LLM, TTS with support for
- * barge-in detection, turn management, and more.
+ * A TypeScript package for building real-time voice AI agents.
+ *
+ * This package provides orchestration for Speech-to-Text (STT), Language Models (LLM),
+ * and Text-to-Speech (TTS) providers, with automatic turn management, interruption detection,
+ * and conversation state management.
+ *
+ * ## Features
+ *
+ * - **Provider-agnostic**: Bring your own STT, LLM, and TTS providers
+ * - **Type-safe**: Compile-time validation of audio formats and provider compatibility
+ * - **Real-time**: Streaming audio and text for low-latency conversations
+ * - **Turn management**: Automatic handling of user and AI turns
+ * - **Interruption**: Users can interrupt the agent while it's speaking
+ * - **Observability**: Comprehensive events and metrics for monitoring
+ * - **Flexible**: Optional VAD and turn detector providers for advanced use cases
+ *
+ * ## Quick Start
+ *
+ * ```typescript
+ * import { createAgent } from "voice-ai";
+ * import { createDeepgram } from "@voice-ai/deepgram";
+ *
+ * const deepgram = createDeepgram({ apiKey: process.env.DEEPGRAM_API_KEY });
+ *
+ * const agent = createAgent({
+ *   stt: deepgram.stt({ model: "nova-3" }),
+ *   llm: myLLMProvider,
+ *   tts: deepgram.tts({ model: "aura-2-thalia-en" }),
+ *   onEvent: (event) => {
+ *     switch (event.type) {
+ *       case "human-turn:ended":
+ *         console.log("User:", event.transcript);
+ *         break;
+ *       case "ai-turn:sentence":
+ *         console.log("Agent:", event.sentence);
+ *         break;
+ *     }
+ *   },
+ * });
+ *
+ * agent.start();
+ * agent.sendAudio(audioChunk); // Send audio from microphone
+ * agent.stop();
+ * ```
+ *
+ * @packageDocumentation
  */
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN EXPORT
-// ═══════════════════════════════════════════════════════════════════════════════
 
 export { createAgent } from "./agent/create-agent";
 export type { Agent, AgentState } from "./agent/create-agent";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MESSAGE TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export type {
   AssistantMessage,
-  AudioPart,
-  // Content parts
-  ContentPart,
   FilePart,
   ImagePart,
-  // Main message type
   Message,
-  MessageContent,
-  // Message variants
   SystemMessage,
   TextPart,
   ToolCallPart,
@@ -36,101 +65,87 @@ export type {
   UserMessage,
 } from "./types/common";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CONFIGURATION TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
+export type {
+  AgentConfig,
+  AudioConfig,
+  AudioEncoding,
+  AudioFormat,
+  Channels,
+  CompressedEncoding,
+  ContainerEncoding,
+  InterruptionConfig,
+  NormalizedAgentConfig,
+  NormalizedAudioConfig,
+  NormalizedAudioFormat,
+  PCMEncoding,
+  SampleRate,
+  TelephonyEncoding,
+} from "./types/config";
 
-export type { AgentConfig, AudioFormat, BargeInConfig } from "./types/config";
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EVENT TYPES
-// Public events only - internal events are not exported
-// ═══════════════════════════════════════════════════════════════════════════════
+export {
+  DEFAULT_AUDIO_CONFIG,
+  DEFAULT_AUDIO_FORMAT,
+  normalizeAudioConfig,
+  normalizeFormat,
+} from "./types/config";
 
 export type {
-  // Main union type (alias for PublicAgentEvent)
+  AgentErrorEvent,
   AgentEvent,
-  // Also export as PublicAgentEvent for clarity
-  PublicAgentEvent,
-
-  // Agent lifecycle events
   AgentLifecycleEvent,
   AgentStartedEvent,
   AgentStoppedEvent,
-  AgentErrorEvent,
-
-  // Human turn events
+  AITurnAudioEvent,
+  AITurnEndedEvent,
+  AITurnEvent,
+  AITurnInterruptedEvent,
+  AITurnSentenceEvent,
+  AITurnStartedEvent,
+  AITurnTokenEvent,
+  DebugEvent,
+  HumanTurnAbandonedEvent,
+  HumanTurnEndedEvent,
   HumanTurnEvent,
   HumanTurnStartedEvent,
   HumanTurnTranscriptEvent,
-  HumanTurnEndedEvent,
-  HumanTurnAbandonedEvent,
-
-  // AI turn events
-  AITurnEvent,
-  AITurnStartedEvent,
-  AITurnTokenEvent,
-  AITurnSentenceEvent,
-  AITurnAudioEvent,
-  AITurnEndedEvent,
-  AITurnInterruptedEvent,
-
-  // Debug events
-  DebugEvent,
+  PublicAgentEvent,
   VADProbabilityEvent,
 } from "./types/events";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// METRICS TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export type {
-  // Turn-level metrics
-  HumanTurnMetrics,
-  AITurnMetrics,
-
-  // Aggregate metrics (cumulative for session, via AgentState.metrics)
   AgentMetrics,
+  AITurnMetrics,
+  AudioMetrics,
+  ContentMetrics,
+  ErrorMetrics,
+  HumanTurnMetrics,
+  LatencyMetrics,
   SessionMetrics,
   TurnStatistics,
-  LatencyMetrics,
-  ContentMetrics,
-  AudioMetrics,
-  ErrorMetrics,
 } from "./types/metrics";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PROVIDER INTERFACES
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export type {
-  // Base types
   BaseProvider,
-  ProviderMetadata,
-  ProviderType,
-  // LLM
   LLMContext,
   LLMFunction,
   LLMInput,
   LLMProvider,
-  // STT
+  ProviderMetadata,
+  ProviderType,
   STTContext,
   STTProvider,
-  // TTS
+  STTProviderMetadata,
   TTSContext,
   TTSProvider,
-  // Turn Detector (optional)
+  TTSProviderMetadata,
   TurnDetectorContext,
   TurnDetectorProvider,
-  // VAD (optional)
   VADContext,
   VADProvider,
 } from "./providers/types";
 
-// Type guards (exported as values)
 export { isLLMFunction, isLLMProvider } from "./providers/types";
 
-// Provider factory functions
 export {
   createCustomLLMProvider,
   createCustomSTTProvider,
@@ -139,7 +154,6 @@ export {
   createCustomVADProvider,
 } from "./providers/factories";
 
-// Factory option types
 export type {
   CreateCustomLLMProviderOptions,
   CreateCustomSTTProviderOptions,
@@ -147,18 +161,3 @@ export type {
   CreateCustomTurnDetectorProviderOptions,
   CreateCustomVADProviderOptions,
 } from "./providers/factories";
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DEPRECATED ADAPTER ALIASES (for backward compatibility)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** @deprecated Use STTProvider instead */
-export type { STTProvider as STTAdapter } from "./providers/types";
-/** @deprecated Use LLMProvider instead */
-export type { LLMProvider as LLMAdapter } from "./providers/types";
-/** @deprecated Use TTSProvider instead */
-export type { TTSProvider as TTSAdapter } from "./providers/types";
-/** @deprecated Use VADProvider instead */
-export type { VADProvider as VADAdapter } from "./providers/types";
-/** @deprecated Use TurnDetectorProvider instead */
-export type { TurnDetectorProvider as TurnDetectorAdapter } from "./providers/types";

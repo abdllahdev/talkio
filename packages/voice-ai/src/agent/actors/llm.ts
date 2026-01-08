@@ -1,8 +1,19 @@
 /**
  * LLM (Large Language Model) Actor
  *
- * Handles response generation via the LLM provider or function.
- * Streams tokens and sentences from the language model.
+ * XState callback actor that handles response generation via the LLM provider or function.
+ * This actor is responsible for:
+ * - Invoking the LLM provider's `generate()` method or calling the LLM function
+ * - Streaming tokens and sentences as they're generated
+ * - Handling filler phrases and acknowledgments via `ctx.say()`
+ * - Supporting interruption of current speech via `ctx.interrupt()`
+ * - Emitting events for tokens, sentences, completion, and errors
+ *
+ * The actor receives the conversation history (messages) and an abort signal
+ * for cancellation. It provides the LLM context with methods to report
+ * generation progress and control speech playback.
+ *
+ * @module agent/actors/llm
  */
 
 import { fromCallback } from "xstate";
@@ -24,7 +35,6 @@ export const llmActor = fromCallback<
 >(({ sendBack, input }) => {
   const { config, messages, abortSignal, sayFn, interruptFn, isSpeakingFn } = input;
 
-  // Build the context object (same for both provider and function)
   const ctx = {
     messages,
     token: (token: string) => sendBack({ type: "_llm:token", token }),

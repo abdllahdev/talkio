@@ -2,20 +2,31 @@
  * Agent Machine Context
  *
  * Defines the context type and initial context factory for the agent state machine.
+ *
+ * The context holds all the mutable state that the agent machine needs to track:
+ * - Configuration (normalized audio config, providers)
+ * - Conversation state (messages, partial transcript, current response)
+ * - Turn state (sentence index, speaking status, speech timing)
+ * - Actor references (LLM, TTS actors for coordination)
+ * - Audio streaming (ReadableStream controller for output)
+ * - Metrics tracking (internal state for computing metrics)
+ *
+ * The context is updated via XState `assign` actions as the machine transitions
+ * through different states. The initial context is created with default values
+ * and the provided configuration.
+ *
+ * @module agent/context
  */
 
 import type { ActorRefFrom } from "xstate";
+import type { AudioFormat } from "../audio/types";
 import type { Message } from "../types/common";
-import type { AgentConfig } from "../types/config";
+import type { NormalizedAgentConfig } from "../types/config";
 import { type MetricsTrackingState, createInitialMetricsState } from "../types/metrics";
 import type { llmActor, ttsActor } from "./actors";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CONTEXT TYPE
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export interface AgentMachineContext {
-  config: AgentConfig;
+  config: NormalizedAgentConfig;
   messages: Message[];
   partialTranscript: string;
   currentResponse: string;
@@ -24,35 +35,23 @@ export interface AgentMachineContext {
   speechStartTime: number | null;
   abortController: AbortController | null;
 
-  // Dynamic actor refs (spawned per turn/sentence, stored for lifecycle control)
   llmRef: ActorRefFrom<typeof llmActor> | null;
   ttsRef: ActorRefFrom<typeof ttsActor> | null;
-
-  // Queue of sentences waiting for TTS
   sentenceQueue: string[];
-
-  // Event source flags
   vadSource: "adapter" | "stt";
   turnSource: "adapter" | "stt";
-
-  // Audio output stream controller (for pushing audio chunks to ReadableStream)
-  audioStreamController: ReadableStreamDefaultController<Float32Array> | null;
-
-  // AI turn tracking (for proper turn end emission)
+  audioStreamController: ReadableStreamDefaultController<ArrayBuffer> | null;
   aiTurnHadAudio: boolean;
   lastLLMResponse: string;
-
-  // Metrics tracking state
   metrics: MetricsTrackingState;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// INITIAL CONTEXT FACTORY
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export function createInitialContext(
-  config: AgentConfig,
-  audioStreamController: ReadableStreamDefaultController<Float32Array> | null,
+export function createInitialContext<
+  InputFormat extends AudioFormat,
+  OutputFormat extends AudioFormat,
+>(
+  config: NormalizedAgentConfig<InputFormat, OutputFormat>,
+  audioStreamController: ReadableStreamDefaultController<ArrayBuffer> | null,
 ): AgentMachineContext {
   return {
     config,

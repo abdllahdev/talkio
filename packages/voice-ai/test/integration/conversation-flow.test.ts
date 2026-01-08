@@ -11,7 +11,6 @@ import {
   createCapturingSTTProvider,
   createCapturingLLMProvider,
   createCapturingTTSProvider,
-  DEFAULT_AUDIO_FORMAT,
   tick,
   createAudioChunk,
   expectEventExists,
@@ -22,7 +21,7 @@ import {
 describe("conversation flow", () => {
   it("orchestrates a complete conversation turn", async () => {
     const events: AgentEvent[] = [];
-    const audioChunks: Float32Array[] = [];
+    const audioChunks: ArrayBuffer[] = [];
 
     const stt = createCapturingSTTProvider();
     const llm = createCapturingLLMProvider();
@@ -49,8 +48,8 @@ describe("conversation flow", () => {
     // ─── STEP 1: User speaks → STT transcribes ───
     const sttCtx = stt.getCtx();
 
-    // Verify audioFormat is passed to STT
-    expect(sttCtx.audioFormat).toEqual(DEFAULT_AUDIO_FORMAT);
+    // Verify audioFormat is passed to STT (uses provider's default when not specified)
+    expect(sttCtx.audioFormat).toEqual(stt.provider.metadata.defaultInputFormat);
 
     // User starts speaking
     sttCtx.speechStart();
@@ -110,13 +109,13 @@ describe("conversation flow", () => {
     // ─── STEP 3: TTS synthesizes the sentence ───
     const ttsCtx = tts.getCtx();
 
-    // Verify TTS received the sentence and audioFormat
+    // Verify TTS received the sentence and audioFormat (uses provider's default when not specified)
     expect(tts.getLastText()).toBe("The weather is sunny today.");
-    expect(ttsCtx.audioFormat).toEqual(DEFAULT_AUDIO_FORMAT);
+    expect(ttsCtx.audioFormat).toEqual(tts.provider.metadata.defaultOutputFormat);
 
     // TTS produces audio chunks
-    const audioChunk1 = createAudioChunk([0.1, 0.2, 0.3]);
-    const audioChunk2 = createAudioChunk([0.4, 0.5, 0.6]);
+    const audioChunk1 = createAudioChunk();
+    const audioChunk2 = createAudioChunk();
     ttsCtx.audioChunk(audioChunk1);
     ttsCtx.audioChunk(audioChunk2);
     await tick();

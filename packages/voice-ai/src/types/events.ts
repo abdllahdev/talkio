@@ -1,92 +1,169 @@
 /**
  * Agent Events
  *
- * Two-layer event architecture:
- * - Public events: Semantic, user-facing events exposed via onEvent callback
- * - Internal events: Machine-only events prefixed with "_", not exposed to users
+ * Defines the event system for the voice AI agent with a two-layer architecture:
+ *
+ * **Public Events** (exposed via `onEvent` callback):
+ * - Semantic, user-facing events that describe what's happening in the conversation
+ * - Lifecycle events: `agent:started`, `agent:stopped`, `agent:error`
+ * - Human turn events: `human-turn:started`, `human-turn:transcript`, `human-turn:ended`, `human-turn:abandoned`
+ * - AI turn events: `ai-turn:started`, `ai-turn:token`, `ai-turn:sentence`, `ai-turn:audio`, `ai-turn:ended`, `ai-turn:interrupted`
+ * - Debug events: `debug:*` for internal state visibility
+ *
+ * **Internal Events** (machine-only, prefixed with `_`):
+ * - Low-level events used for state machine coordination
+ * - Provider events: `_stt:*`, `_llm:*`, `_tts:*`, `_vad:*`
+ * - Machine events: `_agent:*`, `_audio:*`, `_turn:*`
+ * - Not exposed to users, used internally for state transitions
+ *
+ * The event system provides comprehensive observability into the agent's behavior,
+ * enabling monitoring, debugging, and UI updates based on conversation state.
+ *
+ * @module types/events
  */
 
 import type { AITurnMetrics, HumanTurnMetrics } from "./metrics";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PUBLIC EVENTS (Exposed via onEvent callback)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Agent Lifecycle Events
-// ─────────────────────────────────────────────────────────────────────────────
-
+/**
+ * Event emitted when the agent has started and is ready to process audio.
+ * All providers have been initialized and the agent is listening for input.
+ */
 export interface AgentStartedEvent {
   type: "agent:started";
 }
 
+/**
+ * Event emitted when the agent has stopped and all resources have been cleaned up.
+ * All providers have been stopped and connections closed.
+ */
 export interface AgentStoppedEvent {
   type: "agent:stopped";
 }
 
+/**
+ * Event emitted when an error occurs in one of the providers.
+ *
+ * @property error - The error that occurred
+ * @property source - Which provider encountered the error ("stt", "llm", "tts", or "vad")
+ */
 export interface AgentErrorEvent {
   type: "agent:error";
   error: Error;
   source: "stt" | "llm" | "tts" | "vad";
 }
 
+/**
+ * Union of all agent lifecycle events.
+ * These events track the agent's overall state and lifecycle.
+ */
 export type AgentLifecycleEvent = AgentStartedEvent | AgentStoppedEvent | AgentErrorEvent;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Human Turn Events
-// ─────────────────────────────────────────────────────────────────────────────
-
+/**
+ * Event emitted when the user starts speaking (human turn begins).
+ * Triggered by VAD or STT detecting speech activity.
+ */
 export interface HumanTurnStartedEvent {
   type: "human-turn:started";
 }
 
+/**
+ * Event emitted when the STT provider produces a transcript update.
+ * Emitted for both partial (interim) and final transcripts.
+ *
+ * @property text - The transcribed text
+ * @property isFinal - Whether this is a final transcript (true) or partial/interim (false)
+ */
 export interface HumanTurnTranscriptEvent {
   type: "human-turn:transcript";
   text: string;
   isFinal: boolean;
 }
 
+/**
+ * Event emitted when the user's turn has ended and the complete transcript is available.
+ * This marks the end of the human turn and triggers the AI response.
+ *
+ * @property transcript - The final, complete transcript of what the user said
+ * @property metrics - Metrics for this human turn (speech duration, transcript length)
+ */
 export interface HumanTurnEndedEvent {
   type: "human-turn:ended";
   transcript: string;
   metrics: HumanTurnMetrics;
 }
 
+/**
+ * Event emitted when a human turn is abandoned (too short, noise, etc.).
+ * The turn detector determined this wasn't a valid user input.
+ *
+ * @property reason - Reason why the turn was abandoned (e.g., "too_short", "noise")
+ */
 export interface HumanTurnAbandonedEvent {
   type: "human-turn:abandoned";
   reason: string;
 }
 
+/**
+ * Union of all human turn events.
+ * These events track the user's speech input and transcription.
+ */
 export type HumanTurnEvent =
   | HumanTurnStartedEvent
   | HumanTurnTranscriptEvent
   | HumanTurnEndedEvent
   | HumanTurnAbandonedEvent;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AI Turn Events
-// ─────────────────────────────────────────────────────────────────────────────
-
+/**
+ * Event emitted when the AI turn begins (after user turn ends).
+ * The LLM provider starts generating a response.
+ */
 export interface AITurnStartedEvent {
   type: "ai-turn:started";
 }
 
+/**
+ * Event emitted for each token generated by the LLM provider.
+ * Emitted in real-time as tokens are streamed from the LLM.
+ *
+ * @property token - A single token (word or subword) from the LLM
+ */
 export interface AITurnTokenEvent {
   type: "ai-turn:token";
   token: string;
 }
 
+/**
+ * Event emitted when a complete sentence is generated.
+ * Used for sentence-level streaming to TTS for faster response times.
+ *
+ * @property sentence - The complete sentence text
+ * @property index - Zero-based index of this sentence in the response
+ */
 export interface AITurnSentenceEvent {
   type: "ai-turn:sentence";
   sentence: string;
   index: number;
 }
 
+/**
+ * Event emitted when the TTS provider produces an audio chunk.
+ * Audio chunks are streamed as they're synthesized for low-latency playback.
+ *
+ * @property audio - Raw audio bytes (ArrayBuffer) in the configured output format
+ */
 export interface AITurnAudioEvent {
   type: "ai-turn:audio";
-  audio: Float32Array;
+  audio: ArrayBuffer;
 }
 
+/**
+ * Event emitted when the AI turn has completed successfully.
+ * The full response has been generated and synthesized.
+ *
+ * @property text - The complete generated text
+ * @property wasSpoken - Whether the text was actually spoken (true) or interrupted (false)
+ * @property metrics - Metrics for this AI turn (latency, token count, duration, etc.)
+ */
 export interface AITurnEndedEvent {
   type: "ai-turn:ended";
   text: string;
@@ -94,12 +171,23 @@ export interface AITurnEndedEvent {
   metrics: AITurnMetrics;
 }
 
+/**
+ * Event emitted when the AI turn is interrupted by the user.
+ * The user started speaking while the agent was responding.
+ *
+ * @property partialText - The text that was generated before interruption
+ * @property metrics - Metrics for this interrupted turn
+ */
 export interface AITurnInterruptedEvent {
   type: "ai-turn:interrupted";
   partialText: string;
   metrics: AITurnMetrics;
 }
 
+/**
+ * Union of all AI turn events.
+ * These events track the agent's response generation and speech synthesis.
+ */
 export type AITurnEvent =
   | AITurnStartedEvent
   | AITurnTokenEvent
@@ -108,40 +196,29 @@ export type AITurnEvent =
   | AITurnEndedEvent
   | AITurnInterruptedEvent;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Debug Events (optional, for observability)
-// ─────────────────────────────────────────────────────────────────────────────
-
+/**
+ * Event emitted by VAD providers that support probability scores.
+ * Useful for visualization and debugging voice activity detection.
+ *
+ * @property value - Speech probability score between 0 and 1
+ */
 export interface VADProbabilityEvent {
   type: "vad:probability";
   value: number;
 }
 
+/**
+ * Union of all debug/observability events.
+ * These events provide additional information for debugging and monitoring.
+ */
 export type DebugEvent = VADProbabilityEvent;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Public Event Union (exported as AgentEvent for users)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type PublicAgentEvent = AgentLifecycleEvent | HumanTurnEvent | AITurnEvent | DebugEvent;
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// INTERNAL EVENTS (Machine use only, not exposed to users)
-// All internal events are prefixed with "_" for clear distinction
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Audio Input (from user to machine)
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface InternalAudioInputEvent {
   type: "_audio:input";
-  audio: Float32Array;
+  audio: ArrayBuffer;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// STT Internal Events
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface InternalSTTTranscriptEvent {
   type: "_stt:transcript";
@@ -168,10 +245,6 @@ export type InternalSTTEvent =
   | InternalSTTSpeechEndEvent
   | InternalSTTErrorEvent;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VAD Internal Events
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface InternalVADSpeechStartEvent {
   type: "_vad:speech-start";
 }
@@ -191,10 +264,6 @@ export type InternalVADEvent =
   | InternalVADSpeechEndEvent
   | InternalVADProbabilityEvent;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Turn Detector Internal Events
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface InternalTurnEndEvent {
   type: "_turn:end";
   transcript: string;
@@ -206,10 +275,6 @@ export interface InternalTurnAbandonedEvent {
 }
 
 export type InternalTurnDetectorEvent = InternalTurnEndEvent | InternalTurnAbandonedEvent;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// LLM Internal Events
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface InternalLLMTokenEvent {
   type: "_llm:token";
@@ -238,13 +303,9 @@ export type InternalLLMEvent =
   | InternalLLMCompleteEvent
   | InternalLLMErrorEvent;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TTS Internal Events
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface InternalTTSChunkEvent {
   type: "_tts:chunk";
-  audio: Float32Array;
+  audio: ArrayBuffer;
 }
 
 export interface InternalTTSCompleteEvent {
@@ -261,10 +322,6 @@ export type InternalTTSEvent =
   | InternalTTSCompleteEvent
   | InternalTTSErrorEvent;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Filler Control Internal Events (from LLM ctx.say / ctx.interrupt)
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface InternalFillerSayEvent {
   type: "_filler:say";
   text: string;
@@ -276,17 +333,13 @@ export interface InternalFillerInterruptEvent {
 
 export type InternalFillerEvent = InternalFillerSayEvent | InternalFillerInterruptEvent;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Audio Output Internal Events (from streamer actor)
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface InternalAudioOutputStartEvent {
   type: "_audio:output-start";
 }
 
 export interface InternalAudioOutputChunkEvent {
   type: "_audio:output-chunk";
-  audio: Float32Array;
+  audio: ArrayBuffer;
 }
 
 export interface InternalAudioOutputEndEvent {
@@ -304,10 +357,6 @@ export type InternalAudioOutputEvent =
   | InternalAudioOutputEndEvent
   | InternalAudioOutputErrorEvent;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Agent Control Internal Events
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface InternalAgentStartEvent {
   type: "_agent:start";
 }
@@ -317,10 +366,6 @@ export interface InternalAgentStopEvent {
 }
 
 export type InternalAgentControlEvent = InternalAgentStartEvent | InternalAgentStopEvent;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Internal Event Union
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type InternalAgentEvent =
   | InternalAudioInputEvent
@@ -333,18 +378,31 @@ export type InternalAgentEvent =
   | InternalAudioOutputEvent
   | InternalAgentControlEvent;
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MACHINE EVENT TYPE (Internal use only - union of public and internal)
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export type MachineEvent = PublicAgentEvent | InternalAgentEvent;
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EXPORTED TYPE ALIAS (for backwards compatibility and user-facing API)
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * User-facing agent event type.
- * Only includes public events - internal events are filtered out.
+ *
+ * This is the union of all public events that are exposed via the `onEvent` callback.
+ * Internal events (prefixed with "_") are filtered out and not exposed to users.
+ *
+ * Use this type to type your event handler:
+ *
+ * @example
+ * ```typescript
+ * const agent = createAgent({
+ *   stt, llm, tts,
+ *   onEvent: (event: AgentEvent) => {
+ *     switch (event.type) {
+ *       case "human-turn:ended":
+ *         console.log("User:", event.transcript);
+ *         break;
+ *       case "ai-turn:sentence":
+ *         console.log("Agent:", event.sentence);
+ *         break;
+ *     }
+ *   },
+ * });
+ * ```
  */
 export type AgentEvent = PublicAgentEvent;

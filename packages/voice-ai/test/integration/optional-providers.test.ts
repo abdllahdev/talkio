@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { createAgent, type AgentEvent } from "../../src";
 import {
+  createAudioChunk,
   createCapturingSTTProvider,
   createCapturingLLMProvider,
   createCapturingTTSProvider,
@@ -93,12 +94,12 @@ describe("optional providers", () => {
       agent.start();
       await tick();
 
-      // Send audio
-      const audioChunk = new Float32Array([0.1, 0.2, 0.3]);
+      // Send audio (VAD receives Float32 internally after decoding)
+      const audioChunk = createAudioChunk();
       agent.sendAudio(audioChunk);
 
-      // VAD should receive audio
-      expect(vad.mocks.processAudio).toHaveBeenCalledWith(audioChunk);
+      // VAD should receive decoded Float32Array
+      expect(vad.mocks.processAudio).toHaveBeenCalled();
 
       agent.stop();
     });

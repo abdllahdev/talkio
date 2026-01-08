@@ -19,7 +19,7 @@ describe("audioStreamerActor", () => {
     const controller = {
       enqueue: enqueueMock,
       close: closeMock,
-    } as unknown as ReadableStreamDefaultController<Float32Array>;
+    } as unknown as ReadableStreamDefaultController<ArrayBuffer>;
 
     return { controller, mocks: { enqueue: enqueueMock, close: closeMock } };
   };
@@ -38,7 +38,7 @@ describe("audioStreamerActor", () => {
 
       actor.start();
 
-      const audioChunk = createAudioChunk([0.1, 0.2, 0.3]);
+      const audioChunk = createAudioChunk();
       actor.send({ type: "_audio:output-chunk", audio: audioChunk });
 
       expect(mocks.enqueue).toHaveBeenCalledWith(audioChunk);
@@ -57,9 +57,9 @@ describe("audioStreamerActor", () => {
 
       actor.start();
 
-      const chunk1 = createAudioChunk([0.1, 0.2]);
-      const chunk2 = createAudioChunk([0.3, 0.4]);
-      const chunk3 = createAudioChunk([0.5, 0.6]);
+      const chunk1 = createAudioChunk();
+      const chunk2 = createAudioChunk();
+      const chunk3 = createAudioChunk();
 
       actor.send({ type: "_audio:output-chunk", audio: chunk1 });
       actor.send({ type: "_audio:output-chunk", audio: chunk2 });
@@ -83,7 +83,7 @@ describe("audioStreamerActor", () => {
 
       actor.start();
 
-      const audioChunk = createAudioChunk([0.1, 0.2, 0.3]);
+      const audioChunk = createAudioChunk();
 
       // Should not throw when controller is null
       expect(() => {
@@ -99,7 +99,7 @@ describe("audioStreamerActor", () => {
       const controller = {
         enqueue: enqueueMock,
         close: vi.fn(),
-      } as unknown as ReadableStreamDefaultController<Float32Array>;
+      } as unknown as ReadableStreamDefaultController<ArrayBuffer>;
 
       const abortController = new AbortController();
 
@@ -112,7 +112,7 @@ describe("audioStreamerActor", () => {
 
       actor.start();
 
-      const audioChunk = createAudioChunk([0.1, 0.2, 0.3]);
+      const audioChunk = createAudioChunk();
 
       // Should not throw when stream is closed
       expect(() => {
@@ -136,7 +136,7 @@ describe("audioStreamerActor", () => {
       actor.start();
 
       // Send chunk before abort
-      const chunk1 = createAudioChunk([0.1, 0.2]);
+      const chunk1 = createAudioChunk();
       actor.send({ type: "_audio:output-chunk", audio: chunk1 });
       expect(mocks.enqueue).toHaveBeenCalledTimes(1);
 
@@ -144,7 +144,7 @@ describe("audioStreamerActor", () => {
       abortController.abort();
 
       // Send chunk after abort
-      const chunk2 = createAudioChunk([0.3, 0.4]);
+      const chunk2 = createAudioChunk();
       actor.send({ type: "_audio:output-chunk", audio: chunk2 });
 
       // Should not have enqueued the second chunk
