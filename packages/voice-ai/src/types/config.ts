@@ -3,7 +3,7 @@
  */
 
 import type {
-  LLMProvider,
+  LLMInput,
   STTProvider,
   TTSProvider,
   TurnDetectorProvider,
@@ -64,9 +64,12 @@ export interface AgentConfig {
   stt: STTProvider;
 
   /**
-   * Language Model provider.
+   * Language Model provider or function.
+   * Can be either:
+   * - A full LLMProvider object with metadata and generate/cancel methods
+   * - A simple function (ctx: LLMContext) => void that uses ctx.signal for cancellation
    */
-  llm: LLMProvider;
+  llm: LLMInput;
 
   /**
    * Text-to-Speech provider.

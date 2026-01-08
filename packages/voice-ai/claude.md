@@ -175,12 +175,12 @@ When user interrupts the agent:
 1. VAD detects speech start while agent is speaking
 2. If speech duration > `minDurationMs` (default 200ms)
 3. Machine emits `ai-turn:interrupted` event
-4. Cancels LLM actor (via `stopChild()`)
-5. Cancels TTS actor
-6. Stops audio output
+4. Aborts the AbortController (signals cancellation to LLM/TTS)
+5. Creates a new AbortController for the next turn
+6. Clears dynamic actor references
 7. Returns to listening state
 
-All cancellation is automatic through actor model.
+All cancellation is handled via AbortSignal - providers listen to `ctx.signal` for cancellation.
 
 ### Filler Phrase System
 
@@ -499,9 +499,9 @@ Build output:
 ### Actor Patterns
 
 - Always respect `ctx.signal` (AbortSignal) for cancellation
-- Return cleanup function from `fromCallback`
 - Emit only internal events (`_` prefixed)
 - Handle errors gracefully - emit error event, don't throw
+- AbortErrors are silently ignored (expected during cancellation)
 
 ### Testing
 

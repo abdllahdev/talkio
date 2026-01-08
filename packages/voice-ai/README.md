@@ -120,10 +120,11 @@ interface STTContext {
 
 ### LLM Adapter (Required)
 
+Cancellation is handled via `ctx.signal` (AbortSignal).
+
 ```typescript
 interface LLMAdapter {
   generate(messages: Message[], ctx: LLMContext): void;
-  cancel(): void;
 }
 
 interface LLMContext {
@@ -134,23 +135,24 @@ interface LLMContext {
   say(text: string): void; // Trigger filler
   interrupt(): void; // Interrupt audio streaming
   isSpeaking(): boolean;
-  signal: AbortSignal;
+  signal: AbortSignal; // Listen for cancellation
 }
 ```
 
 ### TTS Adapter (Required)
 
+Cancellation is handled via `ctx.signal` (AbortSignal).
+
 ```typescript
 interface TTSAdapter {
   synthesize(text: string, ctx: TTSContext): void;
-  cancel(): void;
 }
 
 interface TTSContext {
   audioChunk(audio: Float32Array): void;
   complete(): void;
   error(error: Error): void;
-  signal: AbortSignal;
+  signal: AbortSignal; // Listen for cancellation
 }
 ```
 
@@ -382,14 +384,10 @@ import { openai } from "@ai-sdk/openai";
 import type { LLMAdapter, LLMContext, Message } from "voice-ai";
 
 export function createOpenAILLM(systemPrompt: string): LLMAdapter {
-  let abortController: AbortController | null = null;
-
   return {
     metadata: { name: "OpenAI", version: "1.0.0", type: "llm" },
 
     async generate(messages: Message[], ctx: LLMContext) {
-      abortController = new AbortController();
-
       const fullMessages = [{ role: "system" as const, content: systemPrompt }, ...messages];
 
       let firstToken = false;
@@ -405,7 +403,7 @@ export function createOpenAILLM(systemPrompt: string): LLMAdapter {
         const result = streamText({
           model: openai("gpt-4o"),
           messages: fullMessages,
-          abortSignal: AbortSignal.any([abortController.signal, ctx.signal]),
+          abortSignal: ctx.signal, // Use ctx.signal for cancellation
         });
 
         let buffer = "";
@@ -442,10 +440,6 @@ export function createOpenAILLM(systemPrompt: string): LLMAdapter {
         clearTimeout(fillerTimeout);
       }
     },
-
-    cancel() {
-      abortController?.abort();
-    },
   };
 }
 ```
@@ -458,7 +452,6 @@ import type { TTSAdapter, TTSContext } from "voice-ai";
 
 export function createElevenLabsTTS(apiKey: string): TTSAdapter {
   const client = new ElevenLabsClient({ apiKey });
-  let currentStream: any = null;
 
   return {
     metadata: { name: "ElevenLabs", version: "1.0.0", type: "tts" },
@@ -470,9 +463,10 @@ export function createElevenLabsTTS(apiKey: string): TTSAdapter {
           model_id: "eleven_turbo_v2_5",
         });
 
-        currentStream = audioStream;
-
         for await (const chunk of audioStream) {
+          // Check if cancelled
+          if (ctx.signal.aborted) break;
+
           // Convert chunk to Float32Array
           const audioBuffer = await new Response(chunk).arrayBuffer();
           const audioData = new Float32Array(audioBuffer.byteLength / 2);
@@ -480,14 +474,14 @@ export function createElevenLabsTTS(apiKey: string): TTSAdapter {
           ctx.audioChunk(audioData);
         }
 
-        ctx.complete();
+        if (!ctx.signal.aborted) {
+          ctx.complete();
+        }
       } catch (error) {
-        ctx.error(error as Error);
+        if ((error as Error).name !== "AbortError") {
+          ctx.error(error as Error);
+        }
       }
-    },
-
-    cancel() {
-      currentStream?.destroy();
     },
   };
 }
@@ -515,8 +509,8 @@ Barge-in is detected when:
 When barge-in occurs:
 
 - `ai-turn:interrupted` event is emitted with partial text
-- TTS and audio streaming are stopped
-- LLM generation is cancelled
+- AbortSignal is triggered to cancel LLM and TTS
+- Audio streaming is stopped
 - Agent returns to listening state
 
 ## Filler Phrases

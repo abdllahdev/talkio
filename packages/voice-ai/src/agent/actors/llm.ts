@@ -1,11 +1,12 @@
 /**
  * LLM (Large Language Model) Actor
  *
- * Handles response generation via the LLM provider.
+ * Handles response generation via the LLM provider or function.
  * Streams tokens and sentences from the language model.
  */
 
 import { fromCallback } from "xstate";
+import { isLLMProvider } from "../../providers/types";
 import type { Message } from "../../types/common";
 import type { AgentConfig } from "../../types/config";
 import type { MachineEvent } from "../../types/events";
@@ -23,16 +24,23 @@ export const llmActor = fromCallback<
 >(({ sendBack, input }) => {
   const { config, messages, abortSignal, sayFn, interruptFn, isSpeakingFn } = input;
 
-  config.llm.generate(messages, {
-    token: (token) => sendBack({ type: "_llm:token", token }),
-    sentence: (sentence, index) => sendBack({ type: "_llm:sentence", sentence, index }),
-    complete: (fullText) => sendBack({ type: "_llm:complete", fullText }),
-    error: (error) => sendBack({ type: "_llm:error", error }),
+  // Build the context object (same for both provider and function)
+  const ctx = {
+    messages,
+    token: (token: string) => sendBack({ type: "_llm:token", token }),
+    sentence: (sentence: string, index: number) =>
+      sendBack({ type: "_llm:sentence", sentence, index }),
+    complete: (fullText: string) => sendBack({ type: "_llm:complete", fullText }),
+    error: (error: Error) => sendBack({ type: "_llm:error", error }),
     say: sayFn,
     interrupt: interruptFn,
     isSpeaking: isSpeakingFn,
     signal: abortSignal,
-  });
+  };
 
-  return () => config.llm.cancel();
+  if (isLLMProvider(config.llm)) {
+    config.llm.generate(messages, ctx);
+  } else {
+    config.llm(ctx);
+  }
 });

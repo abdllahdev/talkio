@@ -20,19 +20,17 @@ describe("ttsActor", () => {
       capturedCtx = ctx;
       capturedText = text;
     });
-    const cancelMock = vi.fn();
 
     const provider: TTSProvider = {
       metadata: { name: "TestTTS", version: "1.0.0", type: "tts" },
       synthesize: synthesizeMock,
-      cancel: cancelMock,
     };
 
     return {
       provider,
       getCtx: () => capturedCtx,
       getText: () => capturedText,
-      mocks: { synthesize: synthesizeMock, cancel: cancelMock },
+      mocks: { synthesize: synthesizeMock },
     };
   };
 
@@ -122,28 +120,6 @@ describe("ttsActor", () => {
       expect(typeof ctx.audioChunk).toBe("function");
       expect(typeof ctx.complete).toBe("function");
       expect(typeof ctx.error).toBe("function");
-    });
-  });
-
-  describe("cleanup", () => {
-    it("calls provider.cancel() when actor is stopped", () => {
-      const tts = createTestTTSProvider();
-      const config = createTestConfig(tts.provider);
-      const abortController = new AbortController();
-
-      const actor = createActor(ttsActor, {
-        input: {
-          config,
-          text: "Test",
-          abortSignal: abortController.signal,
-        },
-      });
-
-      actor.start();
-      expect(tts.mocks.cancel).not.toHaveBeenCalled();
-
-      actor.stop();
-      expect(tts.mocks.cancel).toHaveBeenCalledTimes(1);
     });
   });
 });

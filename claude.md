@@ -46,11 +46,13 @@ bun run clean            # Remove node_modules, dist, .turbo
 ```
 
 To run commands in a specific package:
+
 ```bash
 cd packages/voice-ai && bun run test
 ```
 
 To run a single test file:
+
 ```bash
 cd packages/voice-ai && bun vitest run test/unit/actors/stt.test.ts
 ```

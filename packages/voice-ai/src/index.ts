@@ -110,6 +110,8 @@ export type {
   ProviderType,
   // LLM
   LLMContext,
+  LLMFunction,
+  LLMInput,
   LLMProvider,
   // STT
   STTContext,
@@ -124,6 +126,9 @@ export type {
   VADContext,
   VADProvider,
 } from "./providers/types";
+
+// Type guards (exported as values)
+export { isLLMFunction, isLLMProvider } from "./providers/types";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEPRECATED ADAPTER ALIASES (for backward compatibility)

@@ -8,7 +8,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
-import type { LLMContext, LLMProvider, Message } from "../../../src";
+import type { LLMContext, LLMFunction, LLMInput, LLMProvider, Message } from "../../../src";
 import { llmActor } from "../../../src/agent/actors/llm";
 import { mockSTTProvider, mockTTSProvider, singleUserMessage } from "../../helpers";
 
@@ -20,25 +20,23 @@ describe("llmActor", () => {
       capturedCtx = ctx;
       capturedMessages = messages;
     });
-    const cancelMock = vi.fn();
 
     const provider: LLMProvider = {
       metadata: { name: "TestLLM", version: "1.0.0", type: "llm" },
       generate: generateMock,
-      cancel: cancelMock,
     };
 
     return {
       provider,
       getCtx: () => capturedCtx,
       getMessages: () => capturedMessages,
-      mocks: { generate: generateMock, cancel: cancelMock },
+      mocks: { generate: generateMock },
     };
   };
 
-  const createTestConfig = (llmProvider: LLMProvider) => ({
+  const createTestConfig = (llm: LLMInput) => ({
     stt: mockSTTProvider,
-    llm: llmProvider,
+    llm,
     tts: mockTTSProvider,
   });
 
@@ -160,20 +158,109 @@ describe("llmActor", () => {
     });
   });
 
-  describe("cleanup", () => {
-    it("calls provider.cancel() when actor is stopped", () => {
-      const llm = createTestLLMProvider();
-      const config = createTestConfig(llm.provider);
+  describe("function-based provider", () => {
+    const createTestLLMFunction = () => {
+      let capturedCtx: LLMContext | null = null;
+      const fn: LLMFunction = vi.fn((ctx: LLMContext) => {
+        capturedCtx = ctx;
+      });
+
+      return {
+        fn,
+        getCtx: () => capturedCtx,
+        mock: fn as ReturnType<typeof vi.fn>,
+      };
+    };
+
+    it("calls function with context including messages", () => {
+      const llm = createTestLLMFunction();
+      const config = createTestConfig(llm.fn);
+      const input = createTestInput(config, singleUserMessage);
+
+      const actor = createActor(llmActor, { input });
+      actor.start();
+
+      expect(llm.mock).toHaveBeenCalledTimes(1);
+      const ctx = llm.getCtx();
+      expect(ctx).not.toBeNull();
+      expect(ctx?.messages).toEqual(singleUserMessage);
+    });
+
+    it("provides context methods for event emission", () => {
+      const llm = createTestLLMFunction();
+      const config = createTestConfig(llm.fn);
       const input = createTestInput(config);
 
       const actor = createActor(llmActor, { input });
       actor.start();
 
-      expect(llm.mocks.cancel).not.toHaveBeenCalled();
+      const ctx = llm.getCtx();
+      if (!ctx) throw new Error("LLM context not captured");
+      expect(typeof ctx.token).toBe("function");
+      expect(typeof ctx.sentence).toBe("function");
+      expect(typeof ctx.complete).toBe("function");
+      expect(typeof ctx.error).toBe("function");
+    });
 
-      actor.stop();
+    it("passes abort signal for cancellation", () => {
+      const llm = createTestLLMFunction();
+      const config = createTestConfig(llm.fn);
+      const abortController = new AbortController();
+      const input = {
+        ...createTestInput(config),
+        abortSignal: abortController.signal,
+      };
 
-      expect(llm.mocks.cancel).toHaveBeenCalledTimes(1);
+      const actor = createActor(llmActor, { input });
+      actor.start();
+
+      const ctx = llm.getCtx();
+      expect(ctx?.signal).toBe(abortController.signal);
+      expect(ctx?.signal.aborted).toBe(false);
+
+      abortController.abort();
+      expect(ctx?.signal.aborted).toBe(true);
+    });
+
+    it("provides orchestration methods (say, interrupt, isSpeaking)", () => {
+      const llm = createTestLLMFunction();
+      const config = createTestConfig(llm.fn);
+      const sayFn = vi.fn();
+      const interruptFn = vi.fn();
+      const isSpeakingFn = vi.fn(() => true);
+      const input = {
+        ...createTestInput(config),
+        sayFn,
+        interruptFn,
+        isSpeakingFn,
+      };
+
+      const actor = createActor(llmActor, { input });
+      actor.start();
+
+      const ctx = llm.getCtx();
+      if (!ctx) throw new Error("LLM context not captured");
+
+      ctx.say("Let me think...");
+      expect(sayFn).toHaveBeenCalledWith("Let me think...");
+
+      ctx.interrupt();
+      expect(interruptFn).toHaveBeenCalled();
+
+      const result = ctx.isSpeaking();
+      expect(isSpeakingFn).toHaveBeenCalled();
+      expect(result).toBe(true);
+    });
+
+    it("cleanup does not throw for function-based provider", () => {
+      const llm = createTestLLMFunction();
+      const config = createTestConfig(llm.fn);
+      const input = createTestInput(config);
+
+      const actor = createActor(llmActor, { input });
+      actor.start();
+
+      expect(() => actor.stop()).not.toThrow();
     });
   });
 });

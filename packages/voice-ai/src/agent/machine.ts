@@ -350,17 +350,6 @@ const agentMachineSetup = setup({
     }),
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Adapter control (fire-and-forget side effects)
-    // ─────────────────────────────────────────────────────────────────────────
-    stopLLM: ({ context }) => {
-      context.config.llm.cancel();
-    },
-
-    stopTTS: ({ context }) => {
-      context.config.tts.cancel();
-    },
-
-    // ─────────────────────────────────────────────────────────────────────────
     // Dynamic actor spawning (LLM, TTS per turn/sentence)
     // ─────────────────────────────────────────────────────────────────────────
     spawnLLM: assign({
@@ -717,7 +706,11 @@ export const agentMachine = agentMachineSetup.createMachine({
           actions: [{ type: "setIsSpeaking" }, { type: "spawnTTSFromFiller" }],
         },
         "_filler:interrupt": {
-          actions: [{ type: "stopTTS" }, { type: "clearIsSpeaking" }],
+          actions: [
+            { type: "abortCurrentController" },
+            { type: "createNewAbortController" },
+            { type: "clearIsSpeaking" },
+          ],
         },
       },
 
@@ -736,8 +729,6 @@ export const agentMachine = agentMachineSetup.createMachine({
                 actions: [
                   { type: "recordAITurnInterrupted" },
                   { type: "emitAITurnInterrupted" },
-                  { type: "stopLLM" },
-                  { type: "stopTTS" },
                   { type: "abortCurrentController" },
                   { type: "createNewAbortController" },
                   { type: "clearDynamicActorRefs" },
@@ -766,8 +757,6 @@ export const agentMachine = agentMachineSetup.createMachine({
                 actions: [
                   { type: "recordAITurnInterrupted" },
                   { type: "emitAITurnInterrupted" },
-                  { type: "stopLLM" },
-                  { type: "stopTTS" },
                   { type: "abortCurrentController" },
                   { type: "createNewAbortController" },
                   { type: "clearDynamicActorRefs" },

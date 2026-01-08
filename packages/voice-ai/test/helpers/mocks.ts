@@ -8,6 +8,7 @@
 import { vi, type Mock } from "vitest";
 import type {
   LLMContext,
+  LLMFunction,
   LLMProvider,
   Message,
   STTContext,
@@ -59,15 +60,11 @@ export interface CapturingLLMProvider {
   provider: LLMProvider;
   getCtx(): LLMContext;
   getMessages(): Message[];
-  mocks: {
-    cancel: Mock;
-  };
 }
 
 export function createCapturingLLMProvider(): CapturingLLMProvider {
   let ctx: LLMContext | null = null;
   let lastMessages: Message[] = [];
-  const cancelMock = vi.fn();
 
   return {
     provider: {
@@ -76,14 +73,33 @@ export function createCapturingLLMProvider(): CapturingLLMProvider {
         ctx = c;
         lastMessages = messages;
       },
-      cancel: cancelMock,
     },
     getCtx: () => {
       if (!ctx) throw new Error("LLM context not captured - call provider.generate() first");
       return ctx;
     },
     getMessages: () => lastMessages,
-    mocks: { cancel: cancelMock },
+  };
+}
+
+export interface CapturingLLMFunction {
+  fn: LLMFunction;
+  getCtx(): LLMContext;
+}
+
+export function createCapturingLLMFunction(): CapturingLLMFunction {
+  let ctx: LLMContext | null = null;
+
+  const fn: LLMFunction = (c: LLMContext) => {
+    ctx = c;
+  };
+
+  return {
+    fn,
+    getCtx: () => {
+      if (!ctx) throw new Error("LLM context not captured - call function first");
+      return ctx;
+    },
   };
 }
 
@@ -91,15 +107,11 @@ export interface CapturingTTSProvider {
   provider: TTSProvider;
   getCtx(): TTSContext;
   getLastText(): string;
-  mocks: {
-    cancel: Mock;
-  };
 }
 
 export function createCapturingTTSProvider(): CapturingTTSProvider {
   let ctx: TTSContext | null = null;
   let lastText: string = "";
-  const cancelMock = vi.fn();
 
   return {
     provider: {
@@ -108,14 +120,12 @@ export function createCapturingTTSProvider(): CapturingTTSProvider {
         ctx = c;
         lastText = text;
       },
-      cancel: cancelMock,
     },
     getCtx: () => {
       if (!ctx) throw new Error("TTS context not captured - call provider.synthesize() first");
       return ctx;
     },
     getLastText: () => lastText,
-    mocks: { cancel: cancelMock },
   };
 }
 
@@ -198,13 +208,13 @@ export const mockSTTProvider: STTProvider = {
 export const mockLLMProvider: LLMProvider = {
   metadata: { name: "MockLLM", version: "1.0.0", type: "llm" },
   generate: () => {},
-  cancel: () => {},
 };
+
+export const mockLLMFunction: LLMFunction = () => {};
 
 export const mockTTSProvider: TTSProvider = {
   metadata: { name: "MockTTS", version: "1.0.0", type: "tts" },
   synthesize: () => {},
-  cancel: () => {},
 };
 
 export const mockVADProvider: VADProvider = {

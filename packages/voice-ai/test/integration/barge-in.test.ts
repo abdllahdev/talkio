@@ -7,12 +7,12 @@
 import { describe, expect, it } from "vitest";
 import { createAgent, type AgentEvent } from "../../src";
 import {
-  createCapturingSTTProvider,
   createCapturingLLMProvider,
+  createCapturingSTTProvider,
   createCapturingTTSProvider,
   createCapturingVADProvider,
-  tick,
   expectEventExists,
+  tick,
 } from "../helpers";
 
 describe("barge-in handling", () => {
@@ -61,8 +61,8 @@ describe("barge-in handling", () => {
     // Agent should have stopped speaking
     expect(agent.getSnapshot().isSpeaking).toBe(false);
 
-    // LLM should have been cancelled
-    expect(llm.mocks.cancel).toHaveBeenCalled();
+    // AbortSignal should have been aborted (cancellation via signal)
+    expect(llm.getCtx().signal.aborted).toBe(true);
 
     agent.stop();
   });
@@ -202,8 +202,8 @@ describe("barge-in handling", () => {
     sttCtx.speechStart();
     await tick();
 
-    // TTS should have been cancelled
-    expect(tts.mocks.cancel).toHaveBeenCalled();
+    // AbortSignal should have been aborted
+    expect(tts.getCtx().signal.aborted).toBe(true);
 
     agent.stop();
   });

@@ -139,11 +139,17 @@ export interface STTProvider extends BaseProvider {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Context provided to LLM providers.
- * Contains emit methods for reporting generation events and orchestration controls.
- * LLM providers can use orchestration methods to trigger filler phrases while generating.
+ * Context provided to LLM providers and functions.
+ * Contains the conversation history, emit methods for reporting generation events,
+ * and orchestration controls for filler phrases.
  */
 export interface LLMContext {
+  /**
+   * Conversation history.
+   * Contains all messages in the conversation up to this point.
+   */
+  messages: Message[];
+
   /**
    * Trigger speech immediately (for fillers, acknowledgments, etc.).
    * This will be synthesized and streamed while waiting for the main response.
@@ -162,6 +168,7 @@ export interface LLMContext {
    * Useful for deciding whether to trigger fillers.
    */
   isSpeaking(): boolean;
+
   /**
    * Report a token from the stream.
    * @param token - The generated token
@@ -198,6 +205,9 @@ export interface LLMContext {
  * Provider packages implement this to integrate LLM services.
  * System prompts, tools, and model selection are handled inside the provider.
  *
+ * Cancellation is handled via `ctx.signal` (AbortSignal). Providers should
+ * listen to the signal and clean up when aborted.
+ *
  * @example
  * ```typescript
  * import { createOpenAILLM } from '@voice-ai/provider-openai';
@@ -212,15 +222,57 @@ export interface LLMContext {
 export interface LLMProvider extends BaseProvider {
   /**
    * Generate a response for the given messages.
+   * Cancellation is handled via `ctx.signal` (AbortSignal).
    * @param messages - Conversation history
    * @param ctx - Context with emit and control methods
    */
   generate(messages: Message[], ctx: LLMContext): void;
+}
 
-  /**
-   * Cancel ongoing generation.
-   */
-  cancel(): void;
+/**
+ * Function-based LLM provider.
+ * A simpler alternative to LLMProvider for quick implementations.
+ *
+ * Cancellation is handled via ctx.signal (AbortSignal).
+ *
+ * @example
+ * ```typescript
+ * const llm: LLMFunction = async (ctx) => {
+ *   const response = await openai.chat.completions.create({
+ *     model: "gpt-4",
+ *     messages: ctx.messages,
+ *     stream: true,
+ *   }, { signal: ctx.signal });
+ *
+ *   let fullText = "";
+ *   for await (const chunk of response) {
+ *     const token = chunk.choices[0]?.delta?.content || "";
+ *     ctx.token(token);
+ *     fullText += token;
+ *   }
+ *   ctx.complete(fullText);
+ * };
+ * ```
+ */
+export type LLMFunction = (ctx: LLMContext) => void;
+
+/**
+ * LLM input type - accepts either a full provider object or a simple function.
+ */
+export type LLMInput = LLMProvider | LLMFunction;
+
+/**
+ * Type guard to check if an LLM input is a provider object (not a function).
+ */
+export function isLLMProvider(llm: LLMInput): llm is LLMProvider {
+  return typeof llm === "object" && llm !== null && "generate" in llm && "metadata" in llm;
+}
+
+/**
+ * Type guard to check if an LLM input is a function.
+ */
+export function isLLMFunction(llm: LLMInput): llm is LLMFunction {
+  return typeof llm === "function";
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -264,6 +316,9 @@ export interface TTSContext {
  * Text-to-Speech provider interface.
  * Provider packages implement this to integrate TTS services.
  *
+ * Cancellation is handled via `ctx.signal` (AbortSignal). Providers should
+ * listen to the signal and clean up when aborted.
+ *
  * @example
  * ```typescript
  * import { createElevenLabsTTS } from '@voice-ai/provider-elevenlabs';
@@ -277,15 +332,11 @@ export interface TTSContext {
 export interface TTSProvider extends BaseProvider {
   /**
    * Synthesize text to audio.
+   * Cancellation is handled via `ctx.signal` (AbortSignal).
    * @param text - Text to synthesize
    * @param ctx - Context with emit methods
    */
   synthesize(text: string, ctx: TTSContext): void;
-
-  /**
-   * Cancel ongoing synthesis.
-   */
-  cancel(): void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

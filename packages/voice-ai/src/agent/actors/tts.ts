@@ -34,6 +34,4 @@ export const ttsActor = fromCallback<
     error: (error) => sendBack({ type: "_tts:error", error }),
     signal: abortSignal,
   });
-
-  return () => config.tts.cancel();
 });
