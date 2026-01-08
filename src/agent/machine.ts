@@ -373,7 +373,7 @@ const agentMachineSetup = setup({
             abortSignal: signal,
             sayFn: (text: string) => self.send({ type: "_filler:say", text }),
             interruptFn: () => self.send({ type: "_filler:interrupt" }),
-            isSpeakingFn: () => context.isSpeaking,
+            isSpeakingFn: () => self.getSnapshot().context.isSpeaking,
           },
         });
       },
