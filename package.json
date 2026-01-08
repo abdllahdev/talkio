@@ -1,9 +1,10 @@
 {
-  "name": "voice-ai",
+  "name": "voice-ai-monorepo",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "workspaces": [
     "packages/*",
+    "examples/*",
     "tooling/*"
   ],
   "scripts": {
@@ -16,9 +17,15 @@
     "format:check": "oxfmt --check .",
     "typecheck": "turbo typecheck",
     "prepublishOnly": "turbo prepublishOnly",
-    "clean": "turbo clean && rm -rf node_modules .turbo"
+    "clean": "turbo clean && rm -rf node_modules .turbo",
+    "changeset": "changeset",
+    "changeset:status": "changeset status --verbose",
+    "version": "changeset version",
+    "release": "turbo build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.29.8",
     "oxfmt": "^0.23.0",
     "oxlint": "^1.38.0",
     "turbo": "^2.5.4",

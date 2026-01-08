@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Perform a dry run (no actual publish)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@voice-ai"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build packages
+        run: bun run build
+
+      - name: Check for changesets
+        id: changesets
+        run: |
+          if [ -n "$(find .changeset -name '*.md' ! -name 'README.md' 2>/dev/null)" ]; then
+            echo "has_changesets=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changesets=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Version packages
+        if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bunx changeset version
+
+      - name: Commit version changes
+        if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: version packages" || echo "No changes to commit"
+          git push
+
+      - name: Publish to GitHub Packages (dry run)
+        if: inputs.dry_run == true
+        run: bunx changeset publish --no-git-tag
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
+        run: bunx changeset publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push tags
+        if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
+        run: git push --tags
+
+      - name: Create GitHub Releases
+        if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAGS=$(git tag --points-at HEAD)
+          for TAG in $TAGS; do
+            if [[ $TAG == voice-ai@* ]]; then
+              PACKAGE_NAME="voice-ai"
+              VERSION="${TAG#voice-ai@}"
+              CHANGELOG_PATH="packages/voice-ai/CHANGELOG.md"
+            elif [[ $TAG == @voice-ai/deepgram@* ]]; then
+              PACKAGE_NAME="@voice-ai/deepgram"
+              VERSION="${TAG#@voice-ai/deepgram@}"
+              CHANGELOG_PATH="packages/deepgram/CHANGELOG.md"
+            else
+              continue
+            fi
+
+            NOTES=$(awk "/^## $VERSION/,/^## [0-9]/" "$CHANGELOG_PATH" 2>/dev/null | head -n -1 | tail -n +2 || echo "Release $VERSION")
+
+            gh release create "$TAG" \
+              --title "$PACKAGE_NAME v$VERSION" \
+              --notes "$NOTES" \
+              --verify-tag || echo "Release for $TAG already exists"
+          done

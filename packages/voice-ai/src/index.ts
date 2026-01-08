@@ -90,11 +90,6 @@ export {
 } from "./types/config";
 
 export type {
-  AgentErrorEvent,
-  AgentEvent,
-  AgentLifecycleEvent,
-  AgentStartedEvent,
-  AgentStoppedEvent,
   AITurnAudioEvent,
   AITurnEndedEvent,
   AITurnEvent,
@@ -102,6 +97,11 @@ export type {
   AITurnSentenceEvent,
   AITurnStartedEvent,
   AITurnTokenEvent,
+  AgentErrorEvent,
+  AgentEvent,
+  AgentLifecycleEvent,
+  AgentStartedEvent,
+  AgentStoppedEvent,
   DebugEvent,
   HumanTurnAbandonedEvent,
   HumanTurnEndedEvent,
@@ -113,8 +113,8 @@ export type {
 } from "./types/events";
 
 export type {
-  AgentMetrics,
   AITurnMetrics,
+  AgentMetrics,
   AudioMetrics,
   ContentMetrics,
   ErrorMetrics,

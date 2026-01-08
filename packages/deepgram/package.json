@@ -10,7 +10,16 @@
     "tts",
     "voice-ai"
   ],
+  "homepage": "https://github.com/abdllahdev/voice-ai/tree/main/packages/deepgram#readme",
+  "bugs": {
+    "url": "https://github.com/abdllahdev/voice-ai/issues"
+  },
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abdllahdev/voice-ai.git",
+    "directory": "packages/deepgram"
+  },
   "files": [
     "dist",
     "src"
@@ -31,6 +40,9 @@
       }
     },
     "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "tsdown",

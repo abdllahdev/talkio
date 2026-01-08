@@ -32,3 +32,8 @@ coverage
 
 # Turbo
 .turbo
+
+# Local registry testing
+.npmrc.local
+.npmrc.backup
+.test-install

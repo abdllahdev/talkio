@@ -1,7 +1,17 @@
 {
   "name": "voice-ai",
   "version": "0.1.0",
+  "description": "Orchestration library for realtime voice AI agents",
+  "homepage": "https://github.com/abdllahdev/voice-ai/tree/main/packages/voice-ai#readme",
+  "bugs": {
+    "url": "https://github.com/abdllahdev/voice-ai/issues"
+  },
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abdllahdev/voice-ai.git",
+    "directory": "packages/voice-ai"
+  },
   "files": [
     "dist",
     "src"
@@ -22,6 +32,9 @@
       }
     },
     "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "dev": "tsdown --watch",
