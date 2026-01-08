@@ -29,3 +29,6 @@ coverage
 # Misc
 .env
 .env.local
+
+# Turbo
+.turbo

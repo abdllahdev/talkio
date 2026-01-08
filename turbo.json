@@ -1,0 +1,33 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalDependencies": ["tsconfig.json"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tsconfig.json", "tsdown.config.ts"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "typecheck": {
+      "inputs": ["src/**", "test/**", "tsconfig.json"],
+      "outputs": ["*.tsbuildinfo"]
+    },
+    "test": {
+      "inputs": ["src/**", "test/**", "tsconfig.json", "vitest.config.ts"]
+    },
+    "test:watch": {
+      "cache": false,
+      "persistent": true
+    },
+    "prepublishOnly": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"]
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}
