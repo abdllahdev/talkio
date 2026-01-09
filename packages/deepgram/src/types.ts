@@ -346,6 +346,16 @@ export interface DeepgramSTTOptions {
    * @default true
    */
   vad?: boolean;
+
+  /**
+   * Enable debug logging.
+   *
+   * When `true`, logs WebSocket connection status, messages received,
+   * and audio chunk counts to the console.
+   *
+   * @default false
+   */
+  debug?: boolean;
 }
 
 /**

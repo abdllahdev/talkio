@@ -184,10 +184,12 @@ export function createDeepgramSTT(
 
   const baseUrl = options.baseUrl ?? providerSettings.baseUrl ?? DEFAULT_BASE_URL;
 
+  const debug = options.debug ?? false;
   let ws: WebSocket | null = null;
   let ctx: STTContext | null = null;
   let isConnected = false;
   let audioBuffer: ArrayBuffer[] = [];
+  let audioChunksSent = 0;
 
   function buildUrl(sampleRate: number, encoding: DeepgramSTTEncoding): string {
     const params = new URLSearchParams();
@@ -226,9 +228,16 @@ export function createDeepgramSTT(
     try {
       const message: DeepgramSTTMessage = JSON.parse(event.data as string);
 
+      if (debug && message.type !== "Results") {
+        console.log("[deepgram-stt] Received:", message.type);
+      }
+
       switch (message.type) {
         case "Results": {
           const transcript = message.channel.alternatives[0]?.transcript ?? "";
+          if (debug && transcript) {
+            console.log("[deepgram-stt] Transcript:", transcript, "final:", message.is_final);
+          }
           if (transcript) {
             ctx.transcript(transcript, message.is_final);
           }
@@ -236,25 +245,30 @@ export function createDeepgramSTT(
         }
 
         case "SpeechStarted": {
+          if (debug) console.log("[deepgram-stt] Speech started");
           ctx.speechStart();
           break;
         }
 
         case "UtteranceEnd": {
+          if (debug) console.log("[deepgram-stt] Utterance end");
           ctx.speechEnd();
           break;
         }
 
         case "Error": {
+          if (debug) console.error("[deepgram-stt] Error:", message.description);
           ctx.error(new Error(`Deepgram STT error: ${message.description}`));
           break;
         }
 
         case "Metadata": {
+          if (debug) console.log("[deepgram-stt] Metadata received");
           break;
         }
       }
     } catch (error) {
+      if (debug) console.error("[deepgram-stt] Parse error:", error);
       ctx?.error(error instanceof Error ? error : new Error("Failed to parse Deepgram message"));
     }
   }
@@ -305,16 +319,19 @@ export function createDeepgramSTT(
       context.signal.addEventListener("abort", cleanup);
 
       try {
+        if (debug) console.log("[deepgram-stt] Connecting to:", url.replace(/token=[^&]+/, "token=***"));
         ws = new WebSocket(url, ["token", apiKey]);
 
         ws.onopen = () => {
           isConnected = true;
+          if (debug) console.log("[deepgram-stt] WebSocket connected, flushing", audioBuffer.length, "buffered chunks");
           flushBuffer();
         };
 
         ws.onmessage = handleMessage;
 
         ws.onerror = (event) => {
+          if (debug) console.error("[deepgram-stt] WebSocket error:", (event as ErrorEvent).message ?? "Unknown error");
           ctx?.error(
             new Error(
               `Deepgram WebSocket error: ${(event as ErrorEvent).message ?? "Unknown error"}`,
@@ -324,6 +341,7 @@ export function createDeepgramSTT(
 
         ws.onclose = (event) => {
           isConnected = false;
+          if (debug) console.log("[deepgram-stt] WebSocket closed:", event.code, event.reason);
           if (event.code !== 1000 && event.code !== 1005 && ctx) {
             ctx.error(
               new Error(`Deepgram WebSocket closed: ${event.reason || `code ${event.code}`}`),
@@ -331,6 +349,7 @@ export function createDeepgramSTT(
           }
         };
       } catch (error) {
+        if (debug) console.error("[deepgram-stt] Failed to connect:", error);
         ctx?.error(error instanceof Error ? error : new Error("Failed to connect to Deepgram"));
       }
     },
@@ -340,6 +359,10 @@ export function createDeepgramSTT(
     },
 
     sendAudio(audio: ArrayBuffer): void {
+      audioChunksSent++;
+      if (debug && audioChunksSent % 100 === 1) {
+        console.log("[deepgram-stt] Audio chunks sent:", audioChunksSent, "connected:", isConnected, "wsState:", ws?.readyState);
+      }
       if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(audio);
       } else {

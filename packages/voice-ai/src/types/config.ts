@@ -246,6 +246,17 @@ export interface AgentConfig<
    * ```
    */
   onEvent?: (event: AgentEvent) => void;
+
+  /**
+   * **Optional.** Enable debug logging for internal events.
+   *
+   * When `true`, logs internal state machine events, audio chunk counts,
+   * and provider callbacks to the console. Useful for debugging audio
+   * flow and understanding agent behavior.
+   *
+   * @default false
+   */
+  debug?: boolean;
 }
 
 /**

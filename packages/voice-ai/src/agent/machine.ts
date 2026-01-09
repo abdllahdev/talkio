@@ -297,6 +297,11 @@ const agentMachineSetup = setup({
       llmRef: () => null,
       ttsRef: () => null,
     }),
+    debugLogEvent: ({ context, event }) => {
+      if (context.config.debug) {
+        console.log("[machine] Event:", event.type);
+      }
+    },
     forwardAudioToSTT: sendTo("stt", ({ event }) => event),
     forwardAudioToVAD: sendTo("vad", ({ event }) => event),
     forwardToTurnDetector: sendTo("turnDetector", ({ event }) => event),
@@ -607,11 +612,11 @@ export const agentMachine = agentMachineSetup.createMachine({
       on: {
         "_agent:stop": { target: "#agent.stopped" },
         "_audio:input": {
-          actions: [{ type: "forwardAudioToSTT" }, { type: "forwardAudioToVAD" }],
+          actions: [{ type: "debugLogEvent" }, { type: "forwardAudioToSTT" }, { type: "forwardAudioToVAD" }],
         },
-        "_stt:error": { actions: [{ type: "recordError" }, { type: "emitAgentError" }] },
-        "_llm:error": { actions: [{ type: "recordError" }, { type: "emitAgentError" }] },
-        "_tts:error": { actions: [{ type: "recordError" }, { type: "emitAgentError" }] },
+        "_stt:error": { actions: [{ type: "debugLogEvent" }, { type: "recordError" }, { type: "emitAgentError" }] },
+        "_llm:error": { actions: [{ type: "debugLogEvent" }, { type: "recordError" }, { type: "emitAgentError" }] },
+        "_tts:error": { actions: [{ type: "debugLogEvent" }, { type: "recordError" }, { type: "emitAgentError" }] },
         "_filler:say": {
           actions: [{ type: "setIsSpeaking" }, { type: "spawnTTSFromFiller" }],
         },
@@ -633,6 +638,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 guard: "shouldInterrupt",
                 target: ".userSpeaking",
                 actions: [
+                  { type: "debugLogEvent" },
                   { type: "recordAITurnInterrupted" },
                   { type: "emitAITurnInterrupted" },
                   { type: "abortCurrentController" },
@@ -650,6 +656,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 guard: "hasVADAdapter",
                 target: ".userSpeaking",
                 actions: [
+                  { type: "debugLogEvent" },
                   { type: "setSpeechStartTime" },
                   { type: "recordHumanTurnStart" },
                   { type: "emitHumanTurnStarted" },
@@ -661,6 +668,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 guard: "canInterruptFromSTT",
                 target: ".userSpeaking",
                 actions: [
+                  { type: "debugLogEvent" },
                   { type: "recordAITurnInterrupted" },
                   { type: "emitAITurnInterrupted" },
                   { type: "abortCurrentController" },
@@ -678,6 +686,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 guard: "usesSTTForVAD",
                 target: ".userSpeaking",
                 actions: [
+                  { type: "debugLogEvent" },
                   { type: "setSpeechStartTime" },
                   { type: "recordHumanTurnStart" },
                   { type: "emitHumanTurnStarted" },
@@ -710,6 +719,7 @@ export const agentMachine = agentMachineSetup.createMachine({
               {
                 guard: ({ event }) => event.type === "_stt:transcript" && !event.isFinal,
                 actions: [
+                  { type: "debugLogEvent" },
                   { type: "emitHumanTurnTranscript" },
                   { type: "updatePartialTranscriptFromEvent" },
                   { type: "forwardToTurnDetector" },
@@ -720,12 +730,13 @@ export const agentMachine = agentMachineSetup.createMachine({
                   event.type === "_stt:transcript" &&
                   event.isFinal &&
                   context.turnSource === "adapter",
-                actions: [{ type: "emitHumanTurnTranscript" }, { type: "forwardToTurnDetector" }],
+                actions: [{ type: "debugLogEvent" }, { type: "emitHumanTurnTranscript" }, { type: "forwardToTurnDetector" }],
               },
               {
                 guard: ({ event, context }) =>
                   event.type === "_stt:transcript" && event.isFinal && context.turnSource === "stt",
                 actions: [
+                  { type: "debugLogEvent" },
                   { type: "recordHumanTurnEnd" },
                   { type: "emitHumanTurnTranscript" },
                   { type: "emitHumanTurnEnded" },

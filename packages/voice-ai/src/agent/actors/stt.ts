@@ -31,19 +31,27 @@ export const sttActor = fromCallback<
   const { config, abortSignal } = input;
   const provider = config.stt;
   const inputFormat = config.audio.input;
+  const debug = config.debug ?? false;
+  let audioChunksReceived = 0;
+
+  if (debug) console.log("[stt-actor] Starting STT provider with format:", inputFormat);
 
   provider.start({
     audioFormat: inputFormat,
     transcript: (text, isFinal) => {
+      if (debug) console.log("[stt-actor] Transcript:", text, "final:", isFinal);
       sendBack({ type: "_stt:transcript", text, isFinal });
     },
     speechStart: () => {
+      if (debug) console.log("[stt-actor] Speech start detected");
       sendBack({ type: "_stt:speech-start" });
     },
     speechEnd: () => {
+      if (debug) console.log("[stt-actor] Speech end detected");
       sendBack({ type: "_stt:speech-end" });
     },
     error: (error) => {
+      if (debug) console.error("[stt-actor] Error:", error.message);
       sendBack({ type: "_stt:error", error });
     },
     signal: abortSignal,
@@ -51,9 +59,16 @@ export const sttActor = fromCallback<
 
   receive((event) => {
     if (event.type === "_audio:input") {
+      audioChunksReceived++;
+      if (debug && audioChunksReceived % 100 === 1) {
+        console.log("[stt-actor] Audio chunks received:", audioChunksReceived);
+      }
       provider.sendAudio(event.audio);
     }
   });
 
-  return () => provider.stop();
+  return () => {
+    if (debug) console.log("[stt-actor] Stopping STT provider");
+    provider.stop();
+  };
 });
