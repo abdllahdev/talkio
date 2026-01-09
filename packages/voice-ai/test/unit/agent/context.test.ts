@@ -32,7 +32,6 @@ describe("createInitialContext", () => {
       expect(context.currentResponse).toBe("");
       expect(context.sentenceIndex).toBe(0);
       expect(context.isSpeaking).toBe(false);
-      expect(context.speechStartTime).toBeNull();
       expect(context.sessionAbortController).toBeNull();
       expect(context.turnAbortController).toBeNull();
       expect(context.llmRef).toBeNull();

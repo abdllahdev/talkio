@@ -26,11 +26,10 @@
  */
 
 import { nanoid } from "nanoid";
-import { assign, emit, sendTo, setup } from "xstate";
+import { and, assign, emit, sendTo, setup } from "xstate";
 import type { AgentMachineOutput } from "../types/common";
 import type { NormalizedAgentConfig } from "../types/config";
 import type { MachineEvent, PublicAgentEvent } from "../types/events";
-import type { AITurnMetrics, HumanTurnMetrics } from "../types/metrics";
 import {
   audioStreamerActor,
   llmActor,
@@ -40,6 +39,7 @@ import {
   vadActor,
 } from "./actors";
 import { type AgentMachineContext, createInitialContext } from "./context";
+import { buildAITurnMetrics, buildHumanTurnMetrics, getTTSText } from "./helpers";
 
 const agentMachineSetup = setup({
   types: {
@@ -63,33 +63,39 @@ const agentMachineSetup = setup({
   },
 
   guards: {
+    // VAD/Turn source guards
     hasVADAdapter: ({ context }) => context.vadSource === "adapter",
     usesSTTForVAD: ({ context }) => context.vadSource === "stt",
     hasTurnDetector: ({ context }) => context.turnSource === "adapter",
     noTurnDetector: ({ context }) => context.turnSource === "stt",
-    shouldInterrupt: ({ context, event }) => {
-      if (!context.config.interruption?.enabled || !context.isSpeaking) return false;
-      if (event.type === "_vad:speech-end") {
-        return event.duration >= (context.config.interruption?.minDurationMs ?? 0);
-      }
-      return true;
-    },
-    canInterruptFromSTT: ({ context }) =>
-      context.vadSource === "stt" &&
-      (context.config.interruption?.enabled ?? false) &&
-      context.isSpeaking,
-    hasPendingSentences: ({ context }) => context.sentenceQueue.length > 0,
+
+    // Atomic guards for composition
+    interruptionEnabled: ({ context }) => context.config.interruption?.enabled ?? false,
     isSpeaking: ({ context }) => context.isSpeaking,
+    isNotSpeaking: ({ context }) => !context.isSpeaking,
+    sufficientDuration: ({ context, event }) => {
+      if (event.type !== "_vad:speech-end") return true;
+      return event.duration >= (context.config.interruption?.minDurationMs ?? 0);
+    },
+
+    // Composed interruption guards
+    shouldInterrupt: and(["interruptionEnabled", "isSpeaking", "sufficientDuration"]),
+    canInterruptFromSTT: and(["usesSTTForVAD", "interruptionEnabled", "isSpeaking"]),
+
+    // Queue/TTS guards
+    hasPendingSentences: ({ context }) => context.sentenceQueue.length > 0,
     hasPendingTTS: ({ context }) => context.pendingTTSCount > 0,
     noPendingTTS: ({ context }) => context.pendingTTSCount === 0,
     canSpawnNextTTS: ({ context }) => context.sentenceQueue.length > 0 && context.ttsRef === null,
-    isNotSpeaking: ({ context }) => !context.isSpeaking,
+
+    // Turn state guards
     aiTurnHadAudio: ({ context }) => context.aiTurnHadAudio,
     aiTurnHadNoAudio: ({ context }) => !context.aiTurnHadAudio,
     humanTurnNotStarted: ({ context }) => !context.humanTurnStarted,
   },
 
   actions: {
+    // Emit actions
     emitAgentStarted: emit({ type: "agent:started" }),
     emitAgentStopped: emit({ type: "agent:stopped" }),
     emitAgentError: emit(({ event }) => {
@@ -132,11 +138,11 @@ const agentMachineSetup = setup({
       } else if (event.type === "_stt:transcript" && event.isFinal) {
         transcript = event.text;
       }
-      const metrics: HumanTurnMetrics = {
-        speechDuration: context.metrics.humanSpeechDuration,
-        transcriptLength: context.metrics.humanTranscriptLength,
+      return {
+        type: "human-turn:ended" as const,
+        transcript,
+        metrics: buildHumanTurnMetrics(context.metrics),
       };
-      return { type: "human-turn:ended" as const, transcript, metrics };
     }),
     emitHumanTurnAbandoned: emit(({ event }) => {
       const reason = event.type === "_turn:abandoned" ? event.reason : "unknown";
@@ -161,87 +167,23 @@ const agentMachineSetup = setup({
       const audio = event.type === "_tts:chunk" ? event.audio : new ArrayBuffer(0);
       return { type: "ai-turn:audio" as const, audio };
     }),
-    emitAITurnEndedWithAudio: emit(({ context }) => {
-      const m = context.metrics;
-      const aiTurnEndTime = m.aiTurnEndTime ?? Date.now();
-      const metrics: AITurnMetrics = {
-        timeToFirstToken:
-          m.firstTokenTime && m.aiTurnStartTime ? m.firstTokenTime - m.aiTurnStartTime : 0,
-        timeToFirstSentence:
-          m.firstSentenceTime && m.firstTokenTime ? m.firstSentenceTime - m.firstTokenTime : 0,
-        timeToFirstAudio:
-          m.firstAudioTime && m.firstSentenceTime ? m.firstAudioTime - m.firstSentenceTime : 0,
-        totalDuration: m.aiTurnStartTime ? aiTurnEndTime - m.aiTurnStartTime : 0,
-        tokenCount: m.currentTokenCount,
-        sentenceCount: m.currentSentenceCount,
-        responseLength: m.currentResponseLength,
-        audioChunkCount: m.currentAudioChunkCount,
-        totalAudioSamples: m.currentAudioSamples,
-        wasInterrupted: false,
-      };
-      return {
-        type: "ai-turn:ended" as const,
-        text: context.lastLLMResponse,
-        wasSpoken: true,
-        metrics,
-      };
-    }),
-    emitAITurnEndedWithoutAudio: emit(({ context, event }) => {
-      const m = context.metrics;
-      const aiTurnEndTime = m.aiTurnEndTime ?? Date.now();
-      const metrics: AITurnMetrics = {
-        timeToFirstToken:
-          m.firstTokenTime && m.aiTurnStartTime ? m.firstTokenTime - m.aiTurnStartTime : 0,
-        timeToFirstSentence:
-          m.firstSentenceTime && m.firstTokenTime ? m.firstSentenceTime - m.firstTokenTime : 0,
-        timeToFirstAudio: 0,
-        totalDuration: m.aiTurnStartTime ? aiTurnEndTime - m.aiTurnStartTime : 0,
-        tokenCount: m.currentTokenCount,
-        sentenceCount: m.currentSentenceCount,
-        responseLength: m.currentResponseLength,
-        audioChunkCount: 0,
-        totalAudioSamples: 0,
-        wasInterrupted: false,
-      };
-      return {
-        type: "ai-turn:ended" as const,
-        text: event.type === "_llm:complete" ? event.fullText : "",
-        wasSpoken: false,
-        metrics,
-      };
-    }),
-    emitAITurnInterrupted: emit(({ context }) => {
-      const m = context.metrics;
-      const now = Date.now();
-      const metrics: AITurnMetrics = {
-        timeToFirstToken:
-          m.firstTokenTime && m.aiTurnStartTime ? m.firstTokenTime - m.aiTurnStartTime : 0,
-        timeToFirstSentence:
-          m.firstSentenceTime && m.firstTokenTime ? m.firstSentenceTime - m.firstTokenTime : 0,
-        timeToFirstAudio:
-          m.firstAudioTime && m.firstSentenceTime ? m.firstAudioTime - m.firstSentenceTime : 0,
-        totalDuration: m.aiTurnStartTime ? now - m.aiTurnStartTime : 0,
-        tokenCount: m.currentTokenCount,
-        sentenceCount: m.currentSentenceCount,
-        responseLength: m.currentResponseLength,
-        audioChunkCount: m.currentAudioChunkCount,
-        totalAudioSamples: m.currentAudioSamples,
-        wasInterrupted: true,
-      };
-      return {
-        type: "ai-turn:interrupted" as const,
-        partialText: context.currentResponse,
-        metrics,
-      };
-    }),
+    emitAITurnEnded: emit(({ context }) => ({
+      type: "ai-turn:ended" as const,
+      text: context.lastLLMResponse,
+      wasSpoken: context.aiTurnHadAudio,
+      metrics: buildAITurnMetrics(context.metrics),
+    })),
+    emitAITurnInterrupted: emit(({ context }) => ({
+      type: "ai-turn:interrupted" as const,
+      partialText: context.currentResponse,
+      metrics: buildAITurnMetrics(context.metrics, true),
+    })),
 
     // Debug events
     emitVADProbability: emit(({ event }) => {
       const value = event.type === "_vad:probability" ? event.value : 0;
       return { type: "vad:probability" as const, value };
     }),
-    setSpeechStartTime: assign({ speechStartTime: () => Date.now() }),
-    clearSpeechStartTime: assign({ speechStartTime: () => null }),
 
     updatePartialTranscriptFromEvent: assign({
       partialTranscript: ({ event }) =>
@@ -350,55 +292,31 @@ const agentMachineSetup = setup({
 
     spawnTTSFromQueue: assign({
       ttsRef: ({ context, spawn }) => {
-        if (context.sentenceQueue.length === 0) return null;
-        const text = context.sentenceQueue[0];
+        const text = getTTSText("queue", context.sentenceQueue, { type: "" });
+        if (!text) return null;
         const signal = context.turnAbortController?.signal ?? new AbortController().signal;
         return spawn("tts", {
           systemId: `currentTTS-${nanoid()}`,
-          input: {
-            config: context.config,
-            text,
-            abortSignal: signal,
-          },
+          input: { config: context.config, text, abortSignal: signal },
         });
       },
       sentenceQueue: ({ context }) => context.sentenceQueue.slice(1),
     }),
 
-    clearTTSRef: assign({
-      ttsRef: () => null,
-    }),
+    clearTTSRef: assign({ ttsRef: () => null }),
 
     decrementPendingTTS: assign({
       pendingTTSCount: ({ context }) => Math.max(0, context.pendingTTSCount - 1),
     }),
 
-    spawnTTSFromSentence: assign({
-      ttsRef: ({ context, spawn, event }) => {
-        const text = event.type === "_llm:sentence" ? event.sentence : "";
-        const signal = context.turnAbortController?.signal ?? new AbortController().signal;
-        return spawn("tts", {
-          systemId: `currentTTS-${nanoid()}`,
-          input: {
-            config: context.config,
-            text,
-            abortSignal: signal,
-          },
-        });
-      },
-    }),
-
     spawnTTSFromFiller: assign({
       ttsRef: ({ context, spawn, event }) => {
-        const text = event.type === "_filler:say" ? event.text : "";
+        const text = getTTSText("filler", [], event);
+        if (!text) return null;
         const signal = context.turnAbortController?.signal ?? new AbortController().signal;
         return spawn("tts", {
           systemId: `currentTTS-${nanoid()}`,
-          input: {
-            config: context.config,
-            text,
-            abortSignal: signal,
-          },
+          input: { config: context.config, text, abortSignal: signal },
         });
       },
     }),
@@ -705,7 +623,6 @@ export const agentMachine = agentMachineSetup.createMachine({
                   { type: "clearIsSpeaking" },
                   { type: "clearAITurnHadAudio" },
                   { type: "resetTurnMetrics" },
-                  { type: "setSpeechStartTime" },
                   { type: "recordHumanTurnStart" },
                   { type: "setHumanTurnStarted" },
                   { type: "emitHumanTurnStarted" },
@@ -716,7 +633,6 @@ export const agentMachine = agentMachineSetup.createMachine({
                 target: ".userSpeaking",
                 actions: [
                   { type: "debugLogEvent" },
-                  { type: "setSpeechStartTime" },
                   { type: "recordHumanTurnStart" },
                   { type: "setHumanTurnStarted" },
                   { type: "emitHumanTurnStarted" },
@@ -737,7 +653,6 @@ export const agentMachine = agentMachineSetup.createMachine({
                   { type: "clearIsSpeaking" },
                   { type: "clearAITurnHadAudio" },
                   { type: "resetTurnMetrics" },
-                  { type: "setSpeechStartTime" },
                   { type: "recordHumanTurnStart" },
                   { type: "setHumanTurnStarted" },
                   { type: "emitHumanTurnStarted" },
@@ -746,11 +661,7 @@ export const agentMachine = agentMachineSetup.createMachine({
               {
                 guard: "usesSTTForVAD",
                 target: ".userSpeaking",
-                actions: [
-                  { type: "debugLogEvent" },
-                  { type: "setSpeechStartTime" },
-                  { type: "recordHumanTurnStart" },
-                ],
+                actions: [{ type: "debugLogEvent" }, { type: "recordHumanTurnStart" }],
               },
             ],
           },
@@ -762,12 +673,12 @@ export const agentMachine = agentMachineSetup.createMachine({
                 "_vad:speech-end": {
                   guard: "hasVADAdapter",
                   target: "idle",
-                  actions: [{ type: "clearSpeechStartTime" }, { type: "forwardToTurnDetector" }],
+                  actions: [{ type: "forwardToTurnDetector" }],
                 },
                 "_stt:speech-end": {
                   guard: "usesSTTForVAD",
                   target: "idle",
-                  actions: [{ type: "clearSpeechStartTime" }, { type: "forwardToTurnDetector" }],
+                  actions: [{ type: "forwardToTurnDetector" }],
                 },
               },
             },
@@ -925,7 +836,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 guard: "aiTurnHadNoAudio",
                 actions: [
                   { type: "recordAITurnComplete" },
-                  { type: "emitAITurnEndedWithoutAudio" },
+                  { type: "emitAITurnEnded" },
                   { type: "addAssistantMessageFromEvent" },
                   { type: "resetTurnMetrics" },
                 ],
@@ -1020,7 +931,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                       { type: "decrementPendingTTS" },
                       { type: "recordAITurnComplete" },
                       { type: "clearIsSpeaking" },
-                      { type: "emitAITurnEndedWithAudio" },
+                      { type: "emitAITurnEnded" },
                       { type: "resetTurnMetrics" },
                     ],
                   },
@@ -1047,7 +958,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                       { type: "decrementPendingTTS" },
                       { type: "recordAITurnComplete" },
                       { type: "clearIsSpeaking" },
-                      { type: "emitAITurnEndedWithAudio" },
+                      { type: "emitAITurnEnded" },
                       { type: "resetTurnMetrics" },
                     ],
                   },
