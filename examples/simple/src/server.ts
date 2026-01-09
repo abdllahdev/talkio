@@ -81,6 +81,10 @@ function createSession(ws: WebSocketClient): ClientSession {
     llm,
     tts: deepgram.tts({ model: "aura-2-thalia-en" }),
     debug: true,
+    interruption: {
+      enabled: true,
+      minDurationMs: 200,
+    },
     onEvent: (event) => {
       switch (event.type) {
         case "agent:started":
@@ -168,10 +172,18 @@ Bun.serve({
       ws.send(JSON.stringify({ type: "status", text: "Connected to voice agent" }));
     },
     message(ws, message) {
+      const client = ws as unknown as WebSocketClient;
+      const session = sessions.get(client);
+      if (!session) return;
+
       if (message instanceof ArrayBuffer) {
-        const client = ws as unknown as WebSocketClient;
-        const session = sessions.get(client);
-        session?.agent.sendAudio(message);
+        session.agent.sendAudio(message);
+      } else if (ArrayBuffer.isView(message)) {
+        const buffer = message.buffer.slice(
+          message.byteOffset,
+          message.byteOffset + message.byteLength,
+        );
+        session.agent.sendAudio(buffer);
       }
     },
     close(ws) {

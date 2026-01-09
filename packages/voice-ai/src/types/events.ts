@@ -213,7 +213,30 @@ export interface VADProbabilityEvent {
  */
 export type DebugEvent = VADProbabilityEvent;
 
-export type PublicAgentEvent = AgentLifecycleEvent | HumanTurnEvent | AITurnEvent | DebugEvent;
+/**
+ * Event emitted when silence is detected during listening.
+ * Indicates the user has been silent for longer than the configured timeout.
+ *
+ * @property promptCount - Which prompt number this is (1-based)
+ * @property maxPrompts - Maximum prompts configured
+ */
+export interface SilenceDetectedEvent {
+  type: "silence:detected";
+  promptCount: number;
+  maxPrompts: number;
+}
+
+/**
+ * Union of all silence-related events.
+ */
+export type SilenceEvent = SilenceDetectedEvent;
+
+export type PublicAgentEvent =
+  | AgentLifecycleEvent
+  | HumanTurnEvent
+  | AITurnEvent
+  | DebugEvent
+  | SilenceEvent;
 
 export interface InternalAudioInputEvent {
   type: "_audio:input";
@@ -367,6 +390,12 @@ export interface InternalAgentStopEvent {
 
 export type InternalAgentControlEvent = InternalAgentStartEvent | InternalAgentStopEvent;
 
+export interface InternalSilenceTimeoutEvent {
+  type: "_silence:timeout";
+}
+
+export type InternalSilenceEvent = InternalSilenceTimeoutEvent;
+
 export type InternalAgentEvent =
   | InternalAudioInputEvent
   | InternalSTTEvent
@@ -376,7 +405,8 @@ export type InternalAgentEvent =
   | InternalTTSEvent
   | InternalFillerEvent
   | InternalAudioOutputEvent
-  | InternalAgentControlEvent;
+  | InternalAgentControlEvent
+  | InternalSilenceEvent;
 
 export type MachineEvent = PublicAgentEvent | InternalAgentEvent;
 

@@ -63,6 +63,48 @@ export interface InterruptionConfig {
 }
 
 /**
+ * Silence detection configuration.
+ *
+ * Detects when user is silent for too long while agent is listening,
+ * triggering automatic prompts to re-engage the user.
+ *
+ * @example
+ * ```typescript
+ * const agent = createAgent({
+ *   stt, llm, tts,
+ *   silence: {
+ *     enabled: true,
+ *     timeoutMs: 5000,
+ *     startMode: "afterFirstSpeech",
+ *     promptMessage: "Are you still there?",
+ *     maxPrompts: 3,
+ *   },
+ * });
+ * ```
+ */
+export interface SilenceConfig {
+  /** Whether silence detection is enabled. @default false */
+  enabled?: boolean;
+
+  /** Duration of silence in milliseconds before triggering. @default 5000 */
+  timeoutMs?: number;
+
+  /**
+   * When to start the silence timer:
+   * - "always": Start timer immediately when agent begins listening
+   * - "afterFirstSpeech": Start timer only after user has spoken at least once
+   * @default "afterFirstSpeech"
+   */
+  startMode?: "always" | "afterFirstSpeech";
+
+  /** Message to speak when silence is detected. @default "Are you still there?" */
+  promptMessage?: string;
+
+  /** Maximum number of silence prompts before giving up. @default 3 */
+  maxPrompts?: number;
+}
+
+/**
  * Configuration for {@link createAgent}.
  *
  * @typeParam STT - The STT provider type (inferred from stt property)
@@ -195,6 +237,24 @@ export interface AgentConfig<
    * ```
    */
   interruption?: InterruptionConfig;
+
+  /**
+   * **Optional.** Silence detection configuration.
+   *
+   * Detects when user is silent for too long while agent is listening
+   * and triggers automatic prompts to re-engage the user.
+   *
+   * @example
+   * ```typescript
+   * silence: {
+   *   enabled: true,
+   *   timeoutMs: 5000,
+   *   promptMessage: "Are you still there?",
+   *   maxPrompts: 3,
+   * }
+   * ```
+   */
+  silence?: SilenceConfig;
 
   /**
    * **Optional.** Audio configuration with separate input and output formats.

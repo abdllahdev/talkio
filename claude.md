@@ -19,6 +19,13 @@ Each package has its own `CLAUDE.md` with package-specific guidance.
 
 ## Commands
 
+**IMPORTANT: Command Execution Rules**
+
+- **NEVER use `cd` commands** - they conflict with zoxide and cause errors
+- **NEVER run `bun vitest` directly** - use `bun run test` or package scripts instead
+- Use `--cwd` flag or absolute paths when running commands in specific packages
+- Always use package.json scripts when available
+
 Run from root directory:
 
 ```bash
@@ -35,8 +42,15 @@ bun run clean         # Remove dist, node_modules, .turbo
 Run in specific package:
 
 ```bash
-cd packages/voice-ai && bun run test
-cd packages/voice-ai && bun vitest run test/unit/actors/stt.test.ts
+# Use --cwd flag (preferred)
+bun run --cwd packages/voice-ai test
+bun run --cwd packages/voice-ai test test/unit/actors/stt.test.ts
+
+# Or use absolute paths
+bun run test --cwd /Users/abdllahdev/dev/voice-ai/packages/voice-ai
+
+# Or use package.json scripts with filters
+bun run test --filter voice-ai
 ```
 
 ## Code Style
@@ -69,6 +83,23 @@ cd packages/voice-ai && bun vitest run test/unit/actors/stt.test.ts
 - Unit tests: `test/unit/`
 - Integration tests: `test/integration/`
 - Use `vi.waitFor()` for async assertions
+
+## Bug Fixes and Package Development
+
+**CRITICAL: Package vs Example App Priority**
+
+- **ALWAYS fix bugs in packages first** (`packages/voice-ai/`, `packages/deepgram/`, etc.)
+- **NEVER fix bugs by modifying example apps** (`examples/` directory)
+- Example apps are for demonstration only - they use the packages, they don't define them
+- When a bug is reported, identify the root cause in the package code, not the example usage
+- If an example app has an issue, it's likely because the package has a bug or missing feature
+- Only modify example apps if explicitly asked to update the example itself, not to work around package bugs
+
+**Example of WRONG approach:**
+
+- Bug: "SpeechStarted event fires on background noise"
+- ❌ WRONG: Disable VAD in `examples/simple/src/server.ts`
+- ✅ CORRECT: Fix VAD handling in `packages/deepgram/src/deepgram-stt.ts`
 
 ## Comments
 

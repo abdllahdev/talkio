@@ -33,7 +33,8 @@ export interface AgentMachineContext {
   sentenceIndex: number;
   isSpeaking: boolean;
   speechStartTime: number | null;
-  abortController: AbortController | null;
+  sessionAbortController: AbortController | null;
+  turnAbortController: AbortController | null;
 
   llmRef: ActorRefFrom<typeof llmActor> | null;
   ttsRef: ActorRefFrom<typeof ttsActor> | null;
@@ -44,6 +45,11 @@ export interface AgentMachineContext {
   aiTurnHadAudio: boolean;
   lastLLMResponse: string;
   metrics: MetricsTrackingState;
+  llmComplete: boolean;
+  pendingTTSCount: number;
+  silencePromptCount: number;
+  hasUserSpoken: boolean;
+  humanTurnStarted: boolean;
 }
 
 export function createInitialContext<
@@ -61,7 +67,8 @@ export function createInitialContext<
     sentenceIndex: 0,
     isSpeaking: false,
     speechStartTime: null,
-    abortController: null,
+    sessionAbortController: null,
+    turnAbortController: null,
     llmRef: null,
     ttsRef: null,
     sentenceQueue: [],
@@ -71,5 +78,10 @@ export function createInitialContext<
     aiTurnHadAudio: false,
     lastLLMResponse: "",
     metrics: createInitialMetricsState(),
+    llmComplete: false,
+    pendingTTSCount: 0,
+    silencePromptCount: 0,
+    hasUserSpoken: false,
+    humanTurnStarted: false,
   };
 }

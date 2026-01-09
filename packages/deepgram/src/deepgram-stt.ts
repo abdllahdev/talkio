@@ -319,19 +319,29 @@ export function createDeepgramSTT(
       context.signal.addEventListener("abort", cleanup);
 
       try {
-        if (debug) console.log("[deepgram-stt] Connecting to:", url.replace(/token=[^&]+/, "token=***"));
+        if (debug)
+          console.log("[deepgram-stt] Connecting to:", url.replace(/token=[^&]+/, "token=***"));
         ws = new WebSocket(url, ["token", apiKey]);
 
         ws.onopen = () => {
           isConnected = true;
-          if (debug) console.log("[deepgram-stt] WebSocket connected, flushing", audioBuffer.length, "buffered chunks");
+          if (debug)
+            console.log(
+              "[deepgram-stt] WebSocket connected, flushing",
+              audioBuffer.length,
+              "buffered chunks",
+            );
           flushBuffer();
         };
 
         ws.onmessage = handleMessage;
 
         ws.onerror = (event) => {
-          if (debug) console.error("[deepgram-stt] WebSocket error:", (event as ErrorEvent).message ?? "Unknown error");
+          if (debug)
+            console.error(
+              "[deepgram-stt] WebSocket error:",
+              (event as ErrorEvent).message ?? "Unknown error",
+            );
           ctx?.error(
             new Error(
               `Deepgram WebSocket error: ${(event as ErrorEvent).message ?? "Unknown error"}`,
@@ -361,7 +371,14 @@ export function createDeepgramSTT(
     sendAudio(audio: ArrayBuffer): void {
       audioChunksSent++;
       if (debug && audioChunksSent % 100 === 1) {
-        console.log("[deepgram-stt] Audio chunks sent:", audioChunksSent, "connected:", isConnected, "wsState:", ws?.readyState);
+        console.log(
+          "[deepgram-stt] Audio chunks sent:",
+          audioChunksSent,
+          "connected:",
+          isConnected,
+          "wsState:",
+          ws?.readyState,
+        );
       }
       if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(audio);

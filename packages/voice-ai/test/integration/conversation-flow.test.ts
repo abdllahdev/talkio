@@ -51,12 +51,12 @@ describe("conversation flow", () => {
     // Verify audioFormat is passed to STT (uses provider's default when not specified)
     expect(sttCtx.audioFormat).toEqual(stt.provider.metadata.defaultInputFormat);
 
-    // User starts speaking
+    // User starts speaking (speechStart alone doesn't emit human-turn:started)
     sttCtx.speechStart();
-    expectEventExists(events, "human-turn:started");
 
-    // STT streams partial transcripts
+    // STT streams partial transcripts (first transcript triggers human-turn:started)
     sttCtx.transcript("What's the", false);
+    expectEventExists(events, "human-turn:started");
     sttCtx.transcript("What's the weather", false);
 
     // Verify partial transcripts are emitted

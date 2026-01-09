@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const INPUT_SAMPLE_RATE = 16000;
 const OUTPUT_SAMPLE_RATE = 24000;
@@ -43,6 +43,8 @@ export function VoiceAgentDemo() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const logIdRef = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const audioQueueRef = useRef<ArrayBuffer[]>([]);
+  const isPlayingRef = useRef(false);
 
   const addLog = useCallback((message: string, type: LogEntry["type"] = "system") => {
     setLogs((prev) => [...prev, { id: logIdRef.current++, message, type }]);
@@ -54,19 +56,38 @@ export function VoiceAgentDemo() {
     }
   }, [logs]);
 
-  const playAudio = useCallback(async (buffer: ArrayBuffer) => {
+  const processAudioQueue = useCallback(() => {
+    if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
     if (!audioContextRef.current) return;
+
+    isPlayingRef.current = true;
+    const buffer = audioQueueRef.current.shift();
+    if (!buffer) return;
     const float32 = int16ToFloat32(buffer);
     const audioBuffer = audioContextRef.current.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
     audioBuffer.getChannelData(0).set(float32);
     const source = audioContextRef.current.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(audioContextRef.current.destination);
+    source.onended = () => {
+      isPlayingRef.current = false;
+      processAudioQueue();
+    };
     source.start();
   }, []);
 
+  const playAudio = useCallback(
+    (buffer: ArrayBuffer) => {
+      audioQueueRef.current.push(buffer);
+      processAudioQueue();
+    },
+    [processAudioQueue],
+  );
+
   const stop = useCallback(() => {
     setIsRunning(false);
+    audioQueueRef.current = [];
+    isPlayingRef.current = false;
     if (processorRef.current) {
       processorRef.current.disconnect();
       processorRef.current = null;
@@ -110,8 +131,11 @@ export function VoiceAgentDemo() {
         addLog("Connected to server");
         setIsRunning(true);
 
-        const source = audioContextRef.current!.createMediaStreamSource(mediaStreamRef.current!);
-        const processor = audioContextRef.current!.createScriptProcessor(4096, 1, 1);
+        if (!audioContextRef.current) return;
+        if (!mediaStreamRef.current) return;
+
+        const source = audioContextRef.current.createMediaStreamSource(mediaStreamRef.current);
+        const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
 
         processor.onaudioprocess = (e) => {
@@ -123,7 +147,7 @@ export function VoiceAgentDemo() {
         };
 
         source.connect(processor);
-        processor.connect(audioContextRef.current!.destination);
+        processor.connect(audioContextRef.current.destination);
       };
 
       ws.onmessage = (event) => {

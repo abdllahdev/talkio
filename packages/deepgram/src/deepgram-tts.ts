@@ -224,21 +224,34 @@ export function createDeepgramTTS(
       params.set("model", model);
       params.set("encoding", encoding);
       params.set("sample_rate", sampleRate.toString());
-      params.set("container", "none");
 
       const url = `wss://${baseUrl}/v1/speak?${params.toString()}`;
 
       let ws: WebSocket | null = null;
       let hasReceivedAudio = false;
+      let isCompleted = false;
+      let abortHandler: (() => void) | null = null;
 
       const cleanup = () => {
+        if (abortHandler) {
+          ctx.signal.removeEventListener("abort", abortHandler);
+          abortHandler = null;
+        }
         if (ws) {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ type: "Close" }));
+            } catch {
+              // Ignore send errors during cleanup
+            }
+          }
           ws.close();
           ws = null;
         }
       };
 
-      ctx.signal.addEventListener("abort", cleanup);
+      abortHandler = cleanup;
+      ctx.signal.addEventListener("abort", abortHandler);
 
       try {
         ws = new WebSocket(url, ["token", apiKey]);
@@ -255,7 +268,7 @@ export function createDeepgramTTS(
         };
 
         ws.onmessage = (event: MessageEvent) => {
-          if (ctx.signal.aborted) {
+          if (ctx.signal.aborted || isCompleted) {
             cleanup();
             return;
           }
@@ -266,11 +279,22 @@ export function createDeepgramTTS(
             return;
           }
 
+          if (ArrayBuffer.isView(event.data)) {
+            hasReceivedAudio = true;
+            const buffer = event.data.buffer.slice(
+              event.data.byteOffset,
+              event.data.byteOffset + event.data.byteLength,
+            ) as ArrayBuffer;
+            ctx.audioChunk(buffer);
+            return;
+          }
+
           try {
             const message: DeepgramTTSMessage = JSON.parse(event.data as string);
 
             switch (message.type) {
               case "Flushed": {
+                isCompleted = true;
                 ctx.complete();
                 cleanup();
                 break;
@@ -293,7 +317,7 @@ export function createDeepgramTTS(
         };
 
         ws.onerror = (event) => {
-          if (!ctx.signal.aborted) {
+          if (!ctx.signal.aborted && !isCompleted) {
             ctx.error(
               new Error(
                 `Deepgram TTS WebSocket error: ${(event as ErrorEvent).message ?? "Unknown error"}`,
@@ -304,17 +328,18 @@ export function createDeepgramTTS(
         };
 
         ws.onclose = (event) => {
-          // Only report error if unexpected close and we haven't completed
           if (
             event.code !== 1000 &&
             event.code !== 1005 &&
             !ctx.signal.aborted &&
+            !isCompleted &&
             !hasReceivedAudio
           ) {
             ctx.error(
               new Error(`Deepgram TTS WebSocket closed: ${event.reason || `code ${event.code}`}`),
             );
           }
+          cleanup();
         };
       } catch (error) {
         if (!ctx.signal.aborted) {
@@ -322,6 +347,7 @@ export function createDeepgramTTS(
             error instanceof Error ? error : new Error("Failed to connect to Deepgram TTS"),
           );
         }
+        cleanup();
       }
     },
   };

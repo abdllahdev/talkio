@@ -79,6 +79,7 @@ export type {
   NormalizedAudioFormat,
   PCMEncoding,
   SampleRate,
+  SilenceConfig,
   TelephonyEncoding,
 } from "./types/config";
 
@@ -109,6 +110,8 @@ export type {
   HumanTurnStartedEvent,
   HumanTurnTranscriptEvent,
   PublicAgentEvent,
+  SilenceDetectedEvent,
+  SilenceEvent,
   VADProbabilityEvent,
 } from "./types/events";
 
