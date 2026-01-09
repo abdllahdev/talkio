@@ -16,7 +16,7 @@ import type { AITurnMetrics, MetricsTrackingState } from "../types/metrics";
  */
 export function buildAITurnMetrics(
   metrics: MetricsTrackingState,
-  wasInterrupted = false
+  wasInterrupted = false,
 ): AITurnMetrics {
   const m = metrics;
   const aiTurnEndTime = m.aiTurnEndTime ?? Date.now();
@@ -54,7 +54,7 @@ export function buildHumanTurnMetrics(metrics: MetricsTrackingState) {
 export function getTTSText(
   source: "queue" | "sentence" | "filler",
   sentenceQueue: string[],
-  event: { type: string; sentence?: string; text?: string }
+  event: { type: string; sentence?: string; text?: string },
 ): string {
   switch (source) {
     case "queue":

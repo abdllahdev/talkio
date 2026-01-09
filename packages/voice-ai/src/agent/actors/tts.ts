@@ -36,10 +36,10 @@ export const ttsActor = fromCallback<
   provider.synthesize(text, {
     audioFormat: outputFormat,
     audioChunk: (audio) => {
-      sendBack({ type: "_tts:chunk", audio });
+      sendBack({ type: "_tts:chunk", audio, timestamp: Date.now() });
     },
-    complete: () => sendBack({ type: "_tts:complete" }),
-    error: (error) => sendBack({ type: "_tts:error", error }),
+    complete: () => sendBack({ type: "_tts:complete", timestamp: Date.now() }),
+    error: (error) => sendBack({ type: "_tts:error", error, timestamp: Date.now() }),
     signal: abortSignal,
   });
 });

@@ -51,8 +51,10 @@ describe("interruption handling", () => {
     // Verify agent is speaking
     expect(agent.getSnapshot().isSpeaking).toBe(true);
 
-    // User interrupts! (interruption using STT's speechStart)
+    // User interrupts! (STT fallback requires speech start + transcript after minDuration)
     sttCtx.speechStart();
+    await new Promise((resolve) => setTimeout(resolve, 60)); // Wait past minDurationMs
+    sttCtx.transcript("Wait", false); // Interim transcript triggers interruption check
     await tick();
 
     // Verify interruption was detected
@@ -198,8 +200,10 @@ describe("interruption handling", () => {
     llmCtx.sentence("Once upon a time...", 0);
     await tick();
 
-    // User interrupts
+    // User interrupts (STT fallback requires speech start + transcript after minDuration)
     sttCtx.speechStart();
+    await new Promise((resolve) => setTimeout(resolve, 60)); // Wait past minDurationMs
+    sttCtx.transcript("Stop", false); // Interim transcript triggers interruption check
     await tick();
 
     // AbortSignal should have been aborted
@@ -239,8 +243,10 @@ describe("interruption handling", () => {
     llmCtx.sentence("Hello!", 0);
     await tick();
 
-    // Interruption
+    // Interruption (STT fallback requires speech start + transcript after minDuration)
     sttCtx.speechStart();
+    await new Promise((resolve) => setTimeout(resolve, 60)); // Wait past minDurationMs
+    sttCtx.transcript("Wait", false); // Interim transcript triggers interruption
     await tick();
 
     // Verify we're back to listening (can process new transcript)

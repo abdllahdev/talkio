@@ -36,8 +36,8 @@ export const turnDetectorActor = fromCallback<
   if (!provider) return () => {};
 
   provider.start({
-    turnEnd: (transcript) => sendBack({ type: "_turn:end", transcript }),
-    turnAbandoned: (reason) => sendBack({ type: "_turn:abandoned", reason }),
+    turnEnd: (transcript) => sendBack({ type: "_turn:end", transcript, timestamp: Date.now() }),
+    turnAbandoned: (reason) => sendBack({ type: "_turn:abandoned", reason, timestamp: Date.now() }),
     signal: abortSignal,
   });
 

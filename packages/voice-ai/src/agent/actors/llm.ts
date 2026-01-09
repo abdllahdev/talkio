@@ -37,11 +37,12 @@ export const llmActor = fromCallback<
 
   const ctx = {
     messages,
-    token: (token: string) => sendBack({ type: "_llm:token", token }),
+    token: (token: string) => sendBack({ type: "_llm:token", token, timestamp: Date.now() }),
     sentence: (sentence: string, index: number) =>
-      sendBack({ type: "_llm:sentence", sentence, index }),
-    complete: (fullText: string) => sendBack({ type: "_llm:complete", fullText }),
-    error: (error: Error) => sendBack({ type: "_llm:error", error }),
+      sendBack({ type: "_llm:sentence", sentence, index, timestamp: Date.now() }),
+    complete: (fullText: string) =>
+      sendBack({ type: "_llm:complete", fullText, timestamp: Date.now() }),
+    error: (error: Error) => sendBack({ type: "_llm:error", error, timestamp: Date.now() }),
     say: sayFn,
     interrupt: interruptFn,
     isSpeaking: isSpeakingFn,

@@ -112,7 +112,7 @@ describe("vadActor", () => {
 
         // Send ArrayBuffer (encoded audio)
         const audioChunk = createAudioChunk();
-        actor.send({ type: "_audio:input", audio: audioChunk });
+        actor.send({ type: "_audio:input", audio: audioChunk, timestamp: Date.now() });
 
         expect(vad.mocks.processAudio).toHaveBeenCalledTimes(1);
         const receivedAudio = vad.mocks.processAudio.mock.calls[0][0];
@@ -133,8 +133,8 @@ describe("vadActor", () => {
         const chunk1 = createAudioChunk();
         const chunk2 = createAudioChunk();
 
-        actor.send({ type: "_audio:input", audio: chunk1 });
-        actor.send({ type: "_audio:input", audio: chunk2 });
+        actor.send({ type: "_audio:input", audio: chunk1, timestamp: Date.now() });
+        actor.send({ type: "_audio:input", audio: chunk2, timestamp: Date.now() });
 
         expect(vad.mocks.processAudio).toHaveBeenCalledTimes(2);
       });

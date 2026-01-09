@@ -109,7 +109,12 @@ describe("turnDetectorActor", () => {
 
         actor.start();
 
-        actor.send({ type: "_stt:transcript", text: "Hello", isFinal: false });
+        actor.send({
+          type: "_stt:transcript",
+          text: "Hello",
+          isFinal: false,
+          timestamp: Date.now(),
+        });
 
         expect(turnDetector.mocks.onTranscript).toHaveBeenCalledWith("Hello", false);
       });
@@ -125,7 +130,12 @@ describe("turnDetectorActor", () => {
 
         actor.start();
 
-        actor.send({ type: "_stt:transcript", text: "Complete sentence.", isFinal: true });
+        actor.send({
+          type: "_stt:transcript",
+          text: "Complete sentence.",
+          isFinal: true,
+          timestamp: Date.now(),
+        });
 
         expect(turnDetector.mocks.onTranscript).toHaveBeenCalledWith("Complete sentence.", true);
       });
@@ -141,7 +151,7 @@ describe("turnDetectorActor", () => {
 
         actor.start();
 
-        actor.send({ type: "_vad:speech-end", duration: 2000 });
+        actor.send({ type: "_vad:speech-end", duration: 2000, timestamp: Date.now() });
 
         expect(turnDetector.mocks.onSpeechEnd).toHaveBeenCalledWith(2000);
       });

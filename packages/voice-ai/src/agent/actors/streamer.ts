@@ -32,12 +32,12 @@ export const audioStreamerActor = fromCallback<
 
   const handleAbort = () => {
     isAborted = true;
-    sendBack({ type: "_audio:output-end" });
+    sendBack({ type: "_audio:output-end", timestamp: Date.now() });
   };
 
   abortSignal.addEventListener("abort", handleAbort);
 
-  sendBack({ type: "_audio:output-start" });
+  sendBack({ type: "_audio:output-start", timestamp: Date.now() });
 
   receive((event) => {
     if (isAborted) return;

@@ -40,19 +40,19 @@ export const sttActor = fromCallback<
     audioFormat: inputFormat,
     transcript: (text, isFinal) => {
       if (debug) console.log("[stt-actor] Transcript:", text, "final:", isFinal);
-      sendBack({ type: "_stt:transcript", text, isFinal });
+      sendBack({ type: "_stt:transcript", text, isFinal, timestamp: Date.now() });
     },
     speechStart: () => {
       if (debug) console.log("[stt-actor] Speech start detected");
-      sendBack({ type: "_stt:speech-start" });
+      sendBack({ type: "_stt:speech-start", timestamp: Date.now() });
     },
     speechEnd: () => {
       if (debug) console.log("[stt-actor] Speech end detected");
-      sendBack({ type: "_stt:speech-end" });
+      sendBack({ type: "_stt:speech-end", timestamp: Date.now() });
     },
     error: (error) => {
       if (debug) console.error("[stt-actor] Error:", error.message);
-      sendBack({ type: "_stt:error", error });
+      sendBack({ type: "_stt:error", error, timestamp: Date.now() });
     },
     signal: abortSignal,
   });

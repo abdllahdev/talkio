@@ -78,9 +78,20 @@ const agentMachineSetup = setup({
       return event.duration >= (context.config.interruption?.minDurationMs ?? 0);
     },
 
+    sttSpeechDurationMet: ({ context }) => {
+      if (!context.speechStartedAt) return false;
+      const minDuration = context.config.interruption?.minDurationMs ?? 200;
+      return Date.now() - context.speechStartedAt >= minDuration;
+    },
+
     // Composed interruption guards
     shouldInterrupt: and(["interruptionEnabled", "isSpeaking", "sufficientDuration"]),
-    canInterruptFromSTT: and(["usesSTTForVAD", "interruptionEnabled", "isSpeaking"]),
+    canInterruptFromSTT: and([
+      "usesSTTForVAD",
+      "interruptionEnabled",
+      "isSpeaking",
+      "sttSpeechDurationMet",
+    ]),
 
     // Queue/TTS guards
     hasPendingSentences: ({ context }) => context.sentenceQueue.length > 0,
@@ -96,8 +107,8 @@ const agentMachineSetup = setup({
 
   actions: {
     // Emit actions
-    emitAgentStarted: emit({ type: "agent:started" }),
-    emitAgentStopped: emit({ type: "agent:stopped" }),
+    emitAgentStarted: emit(() => ({ type: "agent:started" as const, timestamp: Date.now() })),
+    emitAgentStopped: emit(() => ({ type: "agent:stopped" as const, timestamp: Date.now() })),
     emitAgentError: emit(({ event }) => {
       let error: Error;
       let source: "stt" | "llm" | "tts" | "vad";
@@ -116,20 +127,29 @@ const agentMachineSetup = setup({
         source = "stt";
       }
 
-      return { type: "agent:error" as const, error, source };
+      return { type: "agent:error" as const, error, source, timestamp: Date.now() };
     }),
 
     // Human turn events
-    emitHumanTurnStarted: emit({ type: "human-turn:started" }),
+    emitHumanTurnStarted: emit(() => ({
+      type: "human-turn:started" as const,
+      timestamp: Date.now(),
+    })),
     emitHumanTurnTranscript: emit(({ event }) => {
       if (event.type === "_stt:transcript") {
         return {
           type: "human-turn:transcript" as const,
           text: event.text,
           isFinal: event.isFinal,
+          timestamp: Date.now(),
         };
       }
-      return { type: "human-turn:transcript" as const, text: "", isFinal: false };
+      return {
+        type: "human-turn:transcript" as const,
+        text: "",
+        isFinal: false,
+        timestamp: Date.now(),
+      };
     }),
     emitHumanTurnEnded: emit(({ context, event }) => {
       let transcript = "";
@@ -142,16 +162,17 @@ const agentMachineSetup = setup({
         type: "human-turn:ended" as const,
         transcript,
         metrics: buildHumanTurnMetrics(context.metrics),
+        timestamp: Date.now(),
       };
     }),
     emitHumanTurnAbandoned: emit(({ event }) => {
       const reason = event.type === "_turn:abandoned" ? event.reason : "unknown";
-      return { type: "human-turn:abandoned" as const, reason };
+      return { type: "human-turn:abandoned" as const, reason, timestamp: Date.now() };
     }),
-    emitAITurnStarted: emit({ type: "ai-turn:started" }),
+    emitAITurnStarted: emit(() => ({ type: "ai-turn:started" as const, timestamp: Date.now() })),
     emitAITurnToken: emit(({ event }) => {
       const token = event.type === "_llm:token" ? event.token : "";
-      return { type: "ai-turn:token" as const, token };
+      return { type: "ai-turn:token" as const, token, timestamp: Date.now() };
     }),
     emitAITurnSentence: emit(({ event }) => {
       if (event.type === "_llm:sentence") {
@@ -159,30 +180,33 @@ const agentMachineSetup = setup({
           type: "ai-turn:sentence" as const,
           sentence: event.sentence,
           index: event.index,
+          timestamp: Date.now(),
         };
       }
-      return { type: "ai-turn:sentence" as const, sentence: "", index: 0 };
+      return { type: "ai-turn:sentence" as const, sentence: "", index: 0, timestamp: Date.now() };
     }),
     emitAITurnAudio: emit(({ event }) => {
       const audio = event.type === "_tts:chunk" ? event.audio : new ArrayBuffer(0);
-      return { type: "ai-turn:audio" as const, audio };
+      return { type: "ai-turn:audio" as const, audio, timestamp: Date.now() };
     }),
     emitAITurnEnded: emit(({ context }) => ({
       type: "ai-turn:ended" as const,
       text: context.lastLLMResponse,
       wasSpoken: context.aiTurnHadAudio,
       metrics: buildAITurnMetrics(context.metrics),
+      timestamp: Date.now(),
     })),
     emitAITurnInterrupted: emit(({ context }) => ({
       type: "ai-turn:interrupted" as const,
       partialText: context.currentResponse,
       metrics: buildAITurnMetrics(context.metrics, true),
+      timestamp: Date.now(),
     })),
 
     // Debug events
     emitVADProbability: emit(({ event }) => {
       const value = event.type === "_vad:probability" ? event.value : 0;
-      return { type: "vad:probability" as const, value };
+      return { type: "vad:probability" as const, value, timestamp: Date.now() };
     }),
 
     updatePartialTranscriptFromEvent: assign({
@@ -231,6 +255,8 @@ const agentMachineSetup = setup({
     clearAITurnHadAudio: assign({ aiTurnHadAudio: () => false }),
     setHumanTurnStarted: assign({ humanTurnStarted: () => true }),
     clearHumanTurnStarted: assign({ humanTurnStarted: () => false }),
+    setSpeechStartedAt: assign({ speechStartedAt: () => Date.now() }),
+    clearSpeechStartedAt: assign({ speechStartedAt: () => null }),
     createSessionAbortController: assign({ sessionAbortController: () => new AbortController() }),
     createTurnAbortController: assign({ turnAbortController: () => new AbortController() }),
 
@@ -262,9 +288,13 @@ const agentMachineSetup = setup({
     forwardToTurnDetector: sendTo("turnDetector", ({ event }) => event),
     forwardAudioToStreamer: sendTo("audioStreamer", ({ event }) => {
       if (event.type === "_tts:chunk") {
-        return { type: "_audio:output-chunk" as const, audio: event.audio };
+        return { type: "_audio:output-chunk" as const, audio: event.audio, timestamp: Date.now() };
       }
-      return { type: "_audio:output-chunk" as const, audio: new Float32Array(0) };
+      return {
+        type: "_audio:output-chunk" as const,
+        audio: new Float32Array(0),
+        timestamp: Date.now(),
+      };
     }),
     spawnLLM: assign({
       llmRef: ({ context, spawn, self }) => {
@@ -274,8 +304,9 @@ const agentMachineSetup = setup({
             config: context.config,
             messages: context.messages,
             abortSignal: signal,
-            sayFn: (text: string) => self.send({ type: "_filler:say", text }),
-            interruptFn: () => self.send({ type: "_filler:interrupt" }),
+            sayFn: (text: string) =>
+              self.send({ type: "_filler:say", text, timestamp: Date.now() }),
+            interruptFn: () => self.send({ type: "_filler:interrupt", timestamp: Date.now() }),
             isSpeakingFn: () => self.getSnapshot().context.isSpeaking,
           },
         });
@@ -641,27 +672,13 @@ export const agentMachine = agentMachineSetup.createMachine({
             ],
             "_stt:speech-start": [
               {
-                guard: "canInterruptFromSTT",
+                guard: "usesSTTForVAD",
                 target: ".userSpeaking",
                 actions: [
                   { type: "debugLogEvent" },
-                  { type: "recordAITurnInterrupted" },
-                  { type: "emitAITurnInterrupted" },
-                  { type: "abortTurnController" },
-                  { type: "createNewTurnAbortController" },
-                  { type: "clearDynamicActorRefs" },
-                  { type: "clearIsSpeaking" },
-                  { type: "clearAITurnHadAudio" },
-                  { type: "resetTurnMetrics" },
+                  { type: "setSpeechStartedAt" },
                   { type: "recordHumanTurnStart" },
-                  { type: "setHumanTurnStarted" },
-                  { type: "emitHumanTurnStarted" },
                 ],
-              },
-              {
-                guard: "usesSTTForVAD",
-                target: ".userSpeaking",
-                actions: [{ type: "debugLogEvent" }, { type: "recordHumanTurnStart" }],
               },
             ],
           },
@@ -678,7 +695,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 "_stt:speech-end": {
                   guard: "usesSTTForVAD",
                   target: "idle",
-                  actions: [{ type: "forwardToTurnDetector" }],
+                  actions: [{ type: "clearSpeechStartedAt" }, { type: "forwardToTurnDetector" }],
                 },
               },
             },
@@ -687,6 +704,27 @@ export const agentMachine = agentMachineSetup.createMachine({
         transcribing: {
           on: {
             "_stt:transcript": [
+              {
+                guard: "canInterruptFromSTT",
+                actions: [
+                  { type: "debugLogEvent" },
+                  { type: "recordAITurnInterrupted" },
+                  { type: "emitAITurnInterrupted" },
+                  { type: "abortTurnController" },
+                  { type: "createNewTurnAbortController" },
+                  { type: "clearDynamicActorRefs" },
+                  { type: "clearIsSpeaking" },
+                  { type: "clearAITurnHadAudio" },
+                  { type: "clearSpeechStartedAt" },
+                  { type: "resetTurnMetrics" },
+                  { type: "setHumanTurnStarted" },
+                  { type: "emitHumanTurnStarted" },
+                  { type: "recordHumanTurnStart" },
+                  { type: "emitHumanTurnTranscript" },
+                  { type: "updatePartialTranscriptFromEvent" },
+                  { type: "forwardToTurnDetector" },
+                ],
+              },
               {
                 guard: ({ event, context }) =>
                   event.type === "_stt:transcript" && !event.isFinal && !context.humanTurnStarted,
@@ -749,6 +787,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                   { type: "addUserMessageFromSTT" },
                   { type: "clearAITurnHadAudio" },
                   { type: "clearHumanTurnStarted" },
+                  { type: "clearSpeechStartedAt" },
                   { type: "recordAITurnStart" },
                   { type: "emitAITurnStarted" },
                   { type: "spawnLLM" },
@@ -765,6 +804,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                   { type: "addUserMessageFromSTT" },
                   { type: "clearAITurnHadAudio" },
                   { type: "clearHumanTurnStarted" },
+                  { type: "clearSpeechStartedAt" },
                   { type: "recordAITurnStart" },
                   { type: "emitAITurnStarted" },
                   { type: "spawnLLM" },
@@ -781,6 +821,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 { type: "addUserMessageFromTurnEnd" },
                 { type: "clearAITurnHadAudio" },
                 { type: "clearHumanTurnStarted" },
+                { type: "clearSpeechStartedAt" },
                 { type: "recordAITurnStart" },
                 { type: "emitAITurnStarted" },
                 { type: "spawnLLM" },
@@ -791,6 +832,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 { type: "recordHumanTurnAbandoned" },
                 { type: "emitHumanTurnAbandoned" },
                 { type: "clearHumanTurnStarted" },
+                { type: "clearSpeechStartedAt" },
               ],
             },
           },

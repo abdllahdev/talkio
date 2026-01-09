@@ -46,6 +46,7 @@ export interface AgentMachineContext {
   metrics: MetricsTrackingState;
   pendingTTSCount: number;
   humanTurnStarted: boolean;
+  speechStartedAt: number | null;
 }
 
 export function createInitialContext<
@@ -75,5 +76,6 @@ export function createInitialContext<
     metrics: createInitialMetricsState(),
     pendingTTSCount: 0,
     humanTurnStarted: false,
+    speechStartedAt: null,
   };
 }

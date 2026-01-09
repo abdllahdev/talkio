@@ -39,7 +39,7 @@ describe("audioStreamerActor", () => {
       actor.start();
 
       const audioChunk = createAudioChunk();
-      actor.send({ type: "_audio:output-chunk", audio: audioChunk });
+      actor.send({ type: "_audio:output-chunk", audio: audioChunk, timestamp: Date.now() });
 
       expect(mocks.enqueue).toHaveBeenCalledWith(audioChunk);
     });
@@ -61,9 +61,9 @@ describe("audioStreamerActor", () => {
       const chunk2 = createAudioChunk();
       const chunk3 = createAudioChunk();
 
-      actor.send({ type: "_audio:output-chunk", audio: chunk1 });
-      actor.send({ type: "_audio:output-chunk", audio: chunk2 });
-      actor.send({ type: "_audio:output-chunk", audio: chunk3 });
+      actor.send({ type: "_audio:output-chunk", audio: chunk1, timestamp: Date.now() });
+      actor.send({ type: "_audio:output-chunk", audio: chunk2, timestamp: Date.now() });
+      actor.send({ type: "_audio:output-chunk", audio: chunk3, timestamp: Date.now() });
 
       expect(mocks.enqueue).toHaveBeenCalledTimes(3);
       expect(mocks.enqueue).toHaveBeenNthCalledWith(1, chunk1);
@@ -87,7 +87,7 @@ describe("audioStreamerActor", () => {
 
       // Should not throw when controller is null
       expect(() => {
-        actor.send({ type: "_audio:output-chunk", audio: audioChunk });
+        actor.send({ type: "_audio:output-chunk", audio: audioChunk, timestamp: Date.now() });
       }).not.toThrow();
     });
 
@@ -116,7 +116,7 @@ describe("audioStreamerActor", () => {
 
       // Should not throw when stream is closed
       expect(() => {
-        actor.send({ type: "_audio:output-chunk", audio: audioChunk });
+        actor.send({ type: "_audio:output-chunk", audio: audioChunk, timestamp: Date.now() });
       }).not.toThrow();
     });
   });
@@ -137,7 +137,7 @@ describe("audioStreamerActor", () => {
 
       // Send chunk before abort
       const chunk1 = createAudioChunk();
-      actor.send({ type: "_audio:output-chunk", audio: chunk1 });
+      actor.send({ type: "_audio:output-chunk", audio: chunk1, timestamp: Date.now() });
       expect(mocks.enqueue).toHaveBeenCalledTimes(1);
 
       // Abort
@@ -145,7 +145,7 @@ describe("audioStreamerActor", () => {
 
       // Send chunk after abort
       const chunk2 = createAudioChunk();
-      actor.send({ type: "_audio:output-chunk", audio: chunk2 });
+      actor.send({ type: "_audio:output-chunk", audio: chunk2, timestamp: Date.now() });
 
       // Should not have enqueued the second chunk
       expect(mocks.enqueue).toHaveBeenCalledTimes(1);

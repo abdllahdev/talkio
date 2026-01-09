@@ -35,9 +35,10 @@ export const vadActor = fromCallback<
   if (!provider) return () => {};
 
   provider.start({
-    speechStart: () => sendBack({ type: "_vad:speech-start" }),
-    speechEnd: (duration) => sendBack({ type: "_vad:speech-end", duration }),
-    speechProbability: (value) => sendBack({ type: "_vad:probability", value }),
+    speechStart: () => sendBack({ type: "_vad:speech-start", timestamp: Date.now() }),
+    speechEnd: (duration) => sendBack({ type: "_vad:speech-end", duration, timestamp: Date.now() }),
+    speechProbability: (value) =>
+      sendBack({ type: "_vad:probability", value, timestamp: Date.now() }),
     signal: abortSignal,
   });
 

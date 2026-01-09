@@ -10,6 +10,7 @@ if (!process.env.DEEPGRAM_API_KEY) {
   console.error("Error: DEEPGRAM_API_KEY environment variable is not set");
   process.exit(1);
 }
+
 if (!process.env.OPENAI_API_KEY) {
   console.error("Error: OPENAI_API_KEY environment variable is not set");
   process.exit(1);

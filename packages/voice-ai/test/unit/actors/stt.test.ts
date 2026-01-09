@@ -139,7 +139,7 @@ describe("sttActor", () => {
       actor.start();
 
       const audioChunk = createAudioChunk();
-      actor.send({ type: "_audio:input", audio: audioChunk });
+      actor.send({ type: "_audio:input", audio: audioChunk, timestamp: Date.now() });
 
       expect(stt.mocks.sendAudio).toHaveBeenCalledWith(audioChunk);
     });
@@ -159,9 +159,9 @@ describe("sttActor", () => {
       const chunk2 = createAudioChunk();
       const chunk3 = createAudioChunk();
 
-      actor.send({ type: "_audio:input", audio: chunk1 });
-      actor.send({ type: "_audio:input", audio: chunk2 });
-      actor.send({ type: "_audio:input", audio: chunk3 });
+      actor.send({ type: "_audio:input", audio: chunk1, timestamp: Date.now() });
+      actor.send({ type: "_audio:input", audio: chunk2, timestamp: Date.now() });
+      actor.send({ type: "_audio:input", audio: chunk3, timestamp: Date.now() });
 
       expect(stt.mocks.sendAudio).toHaveBeenCalledTimes(3);
       expect(stt.mocks.sendAudio).toHaveBeenNthCalledWith(1, chunk1);

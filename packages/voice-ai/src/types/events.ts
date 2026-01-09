@@ -30,6 +30,7 @@ import type { AITurnMetrics, HumanTurnMetrics } from "./metrics";
  */
 export interface AgentStartedEvent {
   type: "agent:started";
+  timestamp: number;
 }
 
 /**
@@ -38,6 +39,7 @@ export interface AgentStartedEvent {
  */
 export interface AgentStoppedEvent {
   type: "agent:stopped";
+  timestamp: number;
 }
 
 /**
@@ -50,6 +52,7 @@ export interface AgentErrorEvent {
   type: "agent:error";
   error: Error;
   source: "stt" | "llm" | "tts" | "vad";
+  timestamp: number;
 }
 
 /**
@@ -64,6 +67,7 @@ export type AgentLifecycleEvent = AgentStartedEvent | AgentStoppedEvent | AgentE
  */
 export interface HumanTurnStartedEvent {
   type: "human-turn:started";
+  timestamp: number;
 }
 
 /**
@@ -77,6 +81,7 @@ export interface HumanTurnTranscriptEvent {
   type: "human-turn:transcript";
   text: string;
   isFinal: boolean;
+  timestamp: number;
 }
 
 /**
@@ -90,6 +95,7 @@ export interface HumanTurnEndedEvent {
   type: "human-turn:ended";
   transcript: string;
   metrics: HumanTurnMetrics;
+  timestamp: number;
 }
 
 /**
@@ -101,6 +107,7 @@ export interface HumanTurnEndedEvent {
 export interface HumanTurnAbandonedEvent {
   type: "human-turn:abandoned";
   reason: string;
+  timestamp: number;
 }
 
 /**
@@ -119,6 +126,7 @@ export type HumanTurnEvent =
  */
 export interface AITurnStartedEvent {
   type: "ai-turn:started";
+  timestamp: number;
 }
 
 /**
@@ -130,6 +138,7 @@ export interface AITurnStartedEvent {
 export interface AITurnTokenEvent {
   type: "ai-turn:token";
   token: string;
+  timestamp: number;
 }
 
 /**
@@ -143,6 +152,7 @@ export interface AITurnSentenceEvent {
   type: "ai-turn:sentence";
   sentence: string;
   index: number;
+  timestamp: number;
 }
 
 /**
@@ -154,6 +164,7 @@ export interface AITurnSentenceEvent {
 export interface AITurnAudioEvent {
   type: "ai-turn:audio";
   audio: ArrayBuffer;
+  timestamp: number;
 }
 
 /**
@@ -169,6 +180,7 @@ export interface AITurnEndedEvent {
   text: string;
   wasSpoken: boolean;
   metrics: AITurnMetrics;
+  timestamp: number;
 }
 
 /**
@@ -182,6 +194,7 @@ export interface AITurnInterruptedEvent {
   type: "ai-turn:interrupted";
   partialText: string;
   metrics: AITurnMetrics;
+  timestamp: number;
 }
 
 /**
@@ -205,6 +218,7 @@ export type AITurnEvent =
 export interface VADProbabilityEvent {
   type: "vad:probability";
   value: number;
+  timestamp: number;
 }
 
 /**
@@ -224,6 +238,7 @@ export interface SilenceDetectedEvent {
   type: "silence:detected";
   promptCount: number;
   maxPrompts: number;
+  timestamp: number;
 }
 
 /**
@@ -241,25 +256,30 @@ export type PublicAgentEvent =
 export interface InternalAudioInputEvent {
   type: "_audio:input";
   audio: ArrayBuffer;
+  timestamp: number;
 }
 
 export interface InternalSTTTranscriptEvent {
   type: "_stt:transcript";
   text: string;
   isFinal: boolean;
+  timestamp: number;
 }
 
 export interface InternalSTTSpeechStartEvent {
   type: "_stt:speech-start";
+  timestamp: number;
 }
 
 export interface InternalSTTSpeechEndEvent {
   type: "_stt:speech-end";
+  timestamp: number;
 }
 
 export interface InternalSTTErrorEvent {
   type: "_stt:error";
   error: Error;
+  timestamp: number;
 }
 
 export type InternalSTTEvent =
@@ -270,16 +290,19 @@ export type InternalSTTEvent =
 
 export interface InternalVADSpeechStartEvent {
   type: "_vad:speech-start";
+  timestamp: number;
 }
 
 export interface InternalVADSpeechEndEvent {
   type: "_vad:speech-end";
   duration: number;
+  timestamp: number;
 }
 
 export interface InternalVADProbabilityEvent {
   type: "_vad:probability";
   value: number;
+  timestamp: number;
 }
 
 export type InternalVADEvent =
@@ -290,11 +313,13 @@ export type InternalVADEvent =
 export interface InternalTurnEndEvent {
   type: "_turn:end";
   transcript: string;
+  timestamp: number;
 }
 
 export interface InternalTurnAbandonedEvent {
   type: "_turn:abandoned";
   reason: string;
+  timestamp: number;
 }
 
 export type InternalTurnDetectorEvent = InternalTurnEndEvent | InternalTurnAbandonedEvent;
@@ -302,22 +327,26 @@ export type InternalTurnDetectorEvent = InternalTurnEndEvent | InternalTurnAband
 export interface InternalLLMTokenEvent {
   type: "_llm:token";
   token: string;
+  timestamp: number;
 }
 
 export interface InternalLLMSentenceEvent {
   type: "_llm:sentence";
   sentence: string;
   index: number;
+  timestamp: number;
 }
 
 export interface InternalLLMCompleteEvent {
   type: "_llm:complete";
   fullText: string;
+  timestamp: number;
 }
 
 export interface InternalLLMErrorEvent {
   type: "_llm:error";
   error: Error;
+  timestamp: number;
 }
 
 export type InternalLLMEvent =
@@ -329,15 +358,18 @@ export type InternalLLMEvent =
 export interface InternalTTSChunkEvent {
   type: "_tts:chunk";
   audio: ArrayBuffer;
+  timestamp: number;
 }
 
 export interface InternalTTSCompleteEvent {
   type: "_tts:complete";
+  timestamp: number;
 }
 
 export interface InternalTTSErrorEvent {
   type: "_tts:error";
   error: Error;
+  timestamp: number;
 }
 
 export type InternalTTSEvent =
@@ -348,30 +380,36 @@ export type InternalTTSEvent =
 export interface InternalFillerSayEvent {
   type: "_filler:say";
   text: string;
+  timestamp: number;
 }
 
 export interface InternalFillerInterruptEvent {
   type: "_filler:interrupt";
+  timestamp: number;
 }
 
 export type InternalFillerEvent = InternalFillerSayEvent | InternalFillerInterruptEvent;
 
 export interface InternalAudioOutputStartEvent {
   type: "_audio:output-start";
+  timestamp: number;
 }
 
 export interface InternalAudioOutputChunkEvent {
   type: "_audio:output-chunk";
   audio: ArrayBuffer;
+  timestamp: number;
 }
 
 export interface InternalAudioOutputEndEvent {
   type: "_audio:output-end";
+  timestamp: number;
 }
 
 export interface InternalAudioOutputErrorEvent {
   type: "_audio:output-error";
   error: Error;
+  timestamp: number;
 }
 
 export type InternalAudioOutputEvent =
@@ -382,16 +420,19 @@ export type InternalAudioOutputEvent =
 
 export interface InternalAgentStartEvent {
   type: "_agent:start";
+  timestamp: number;
 }
 
 export interface InternalAgentStopEvent {
   type: "_agent:stop";
+  timestamp: number;
 }
 
 export type InternalAgentControlEvent = InternalAgentStartEvent | InternalAgentStopEvent;
 
 export interface InternalSilenceTimeoutEvent {
   type: "_silence:timeout";
+  timestamp: number;
 }
 
 export type InternalSilenceEvent = InternalSilenceTimeoutEvent;

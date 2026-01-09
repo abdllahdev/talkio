@@ -379,15 +379,15 @@ export function createAgent<
 
     start() {
       actor.start();
-      actor.send({ type: "_agent:start" });
+      actor.send({ type: "_agent:start", timestamp: Date.now() });
     },
 
     sendAudio(audio: ArrayBuffer) {
-      actor.send({ type: "_audio:input", audio });
+      actor.send({ type: "_audio:input", audio, timestamp: Date.now() });
     },
 
     stop() {
-      actor.send({ type: "_agent:stop" });
+      actor.send({ type: "_agent:stop", timestamp: Date.now() });
       actor.stop();
       try {
         audioStreamController?.close();
