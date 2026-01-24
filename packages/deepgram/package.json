@@ -1,6 +1,6 @@
 {
   "name": "@vox/deepgram",
-  "version": "0.1.0",
+  "version": "1.0.0-alpha.1",
   "description": "Deepgram STT and TTS providers for @vox/core",
   "keywords": [
     "deepgram",
@@ -42,7 +42,7 @@
     "./package.json": "./package.json"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "scripts": {
     "build": "tsdown",
@@ -59,7 +59,7 @@
     "vitest": "^4.0.16"
   },
   "peerDependencies": {
-    "@vox/core": "workspace:*"
+    "@vox/core": ">=1.0.0-alpha.1"
   },
   "engines": {
     "node": ">=20"

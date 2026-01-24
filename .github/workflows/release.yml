@@ -18,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,8 +33,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: "https://npm.pkg.github.com"
-          scope: "@vox"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: bun install
@@ -67,17 +65,17 @@ jobs:
           git commit -m "chore: version packages" || echo "No changes to commit"
           git push
 
-      - name: Publish to GitHub Packages (dry run)
+      - name: Publish to npm (dry run)
         if: inputs.dry_run == true
         run: bunx changeset publish --no-git-tag
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to GitHub Packages
+      - name: Publish to npm
         if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
         run: bunx changeset publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Push tags
         if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false

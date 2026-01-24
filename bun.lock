@@ -60,7 +60,7 @@
         "vitest": "^4.0.16",
       },
       "peerDependencies": {
-        "@vox/core": "workspace:*",
+        "@vox/core": ">=0.1.0",
       },
     },
     "tooling/tsconfig": {

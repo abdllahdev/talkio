@@ -1,6 +1,6 @@
 {
   "name": "@vox/core",
-  "version": "0.1.0",
+  "version": "1.0.0-alpha.1",
   "description": "Orchestration library for realtime voice AI agents",
   "homepage": "https://github.com/abdllahdev/voice-ai/tree/main/packages/core#readme",
   "bugs": {
