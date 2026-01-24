@@ -221,10 +221,7 @@ export async function createAudioPreprocessor(
     });
 
     if (!decoder.supports(inputConfig.encoding)) {
-      throw new Error(
-        `Encoding "${inputConfig.encoding}" requires decoding but no decoder is available. ` +
-          `Install @discordjs/opus for opus/webm support.`,
-      );
+      throw new Error(`Encoding "${inputConfig.encoding}" requires decoding but is not supported.`);
     }
   }
 

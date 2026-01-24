@@ -51,7 +51,7 @@ export {
 
 // Decoder
 export type { DecodedAudio, AudioDecoder } from "./decoder";
-export { createAudioDecoder, requiresDecoding, isRawPCM, isDecodingAvailable } from "./decoder";
+export { createAudioDecoder, requiresDecoding, isRawPCM } from "./decoder";
 
 // Preprocessor
 export type {

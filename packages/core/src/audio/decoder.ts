@@ -8,6 +8,8 @@
  * @module audio/decoder
  */
 
+import { OpusDecoder } from "opus-decoder";
+
 import type { AudioEncoding } from "./types";
 
 /**
@@ -55,116 +57,84 @@ export interface AudioDecoder {
 const RAW_PCM_ENCODINGS: AudioEncoding[] = ["linear16", "linear32", "float32", "mulaw", "alaw"];
 
 /**
- * Encodings that require decoding.
- */
-const COMPRESSED_ENCODINGS: AudioEncoding[] = [
-  "opus",
-  "ogg-opus",
-  "webm",
-  "ogg",
-  "mp3",
-  "aac",
-  "flac",
-  "wav",
-  "mp4",
-  "speex",
-  "amr-nb",
-  "amr-wb",
-  "g729",
-];
-
-/**
- * Check if an encoding requires decoding.
- *
- * @param encoding - The encoding to check
- * @returns true if the encoding needs to be decoded to PCM
- */
-export function requiresDecoding(encoding: AudioEncoding): boolean {
-  return COMPRESSED_ENCODINGS.includes(encoding);
-}
-
-/**
- * Check if an encoding is raw PCM.
- *
- * @param encoding - The encoding to check
- * @returns true if the encoding is a raw PCM format
+ * Check if an encoding is raw PCM (no decoding needed).
  */
 export function isRawPCM(encoding: AudioEncoding): boolean {
   return RAW_PCM_ENCODINGS.includes(encoding);
 }
 
 /**
- * Internal opus decoder instance type.
+ * Check if an encoding requires decoding to PCM.
  */
-interface OpusDecoderInstance {
+export function requiresDecoding(encoding: AudioEncoding): boolean {
+  return !isRawPCM(encoding);
+}
+
+/**
+ * Internal opus decoder wrapper that provides a consistent interface.
+ */
+interface OpusDecoderWrapper {
   decode(data: Uint8Array): Int16Array;
   destroy(): void;
 }
 
 /**
- * Lazy-loaded opus decoder module.
+ * Convert Float32Array PCM to Int16Array PCM.
  */
-let opusDecoderPromise: Promise<{
-  createDecoder: (sampleRate: number, channels: number) => OpusDecoderInstance;
-} | null> | null = null;
+function float32ToInt16(float32: Float32Array): Int16Array {
+  const int16 = new Int16Array(float32.length);
+  for (let i = 0; i < float32.length; i++) {
+    const sample = Math.max(-1, Math.min(1, float32[i]));
+    int16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  }
+  return int16;
+}
 
 /**
- * Get or create the opus decoder module.
- * Uses dynamic import for lazy loading.
+ * Create an opus decoder wrapper using the WASM-based opus-decoder.
+ * Works on all platforms without native compilation.
  */
-async function getOpusModule(): Promise<{
-  createDecoder: (sampleRate: number, channels: number) => OpusDecoderInstance;
-} | null> {
-  if (opusDecoderPromise) {
-    return opusDecoderPromise;
-  }
+async function createOpusDecoderWrapper(
+  sampleRate: number,
+  channels: number,
+): Promise<OpusDecoderWrapper> {
+  // opus-decoder only supports specific sample rates
+  const validSampleRates = [8000, 12000, 16000, 24000, 48000] as const;
+  const opusSampleRate = validSampleRates.includes(sampleRate as (typeof validSampleRates)[number])
+    ? (sampleRate as (typeof validSampleRates)[number])
+    : 48000;
 
-  opusDecoderPromise = (async () => {
-    // Only attempt to load opus decoder in Node.js environments
-    // Check for Node.js globals that won't exist in browser builds
-    // This prevents bundlers from analyzing the opus module dependency
-    const isNode = typeof process !== "undefined" && process.versions?.node;
-    if (!isNode) {
-      return null;
-    }
+  const decoder = new OpusDecoder({
+    sampleRate: opusSampleRate,
+    channels,
+  });
+  await decoder.ready;
 
-    try {
-      // Use require() which is Node.js-only and won't be analyzed by browser bundlers
-      // Construct module name at runtime to prevent static analysis
-      const parts = ["@discord", "js", "/", "opus"];
-      const opusModuleName = parts.join("").replace("//", "/");
-
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const opus = require(opusModuleName) as {
-        OpusEncoder: new (
-          sampleRate: number,
-          channels: number,
-        ) => {
-          decode(buffer: Buffer): Buffer;
-        };
-      };
-
-      return {
-        createDecoder(sampleRate: number, channels: number): OpusDecoderInstance {
-          const encoder = new opus.OpusEncoder(sampleRate, channels);
-          return {
-            decode(data: Uint8Array): Int16Array {
-              const buffer = encoder.decode(Buffer.from(data));
-              return new Int16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 2);
-            },
-            destroy(): void {
-              // OpusEncoder doesn't have explicit cleanup
-            },
-          };
-        },
-      };
-    } catch {
-      // Opus decoder not available
-      return null;
-    }
-  })();
-
-  return opusDecoderPromise;
+  return {
+    decode(data: Uint8Array): Int16Array {
+      const result = decoder.decodeFrame(data);
+      if (result.errors && result.errors.length > 0) {
+        throw new Error(`Opus decode error: ${result.errors.join(", ")}`);
+      }
+      // Merge channels into interleaved Int16Array
+      if (result.channelData.length === 1) {
+        return float32ToInt16(result.channelData[0]);
+      }
+      // Interleave stereo/multichannel
+      const samplesPerChannel = result.samplesDecoded;
+      const int16 = new Int16Array(samplesPerChannel * channels);
+      for (let i = 0; i < samplesPerChannel; i++) {
+        for (let ch = 0; ch < channels; ch++) {
+          const sample = Math.max(-1, Math.min(1, result.channelData[ch][i]));
+          int16[i * channels + ch] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+        }
+      }
+      return int16;
+    },
+    destroy(): void {
+      decoder.free();
+    },
+  };
 }
 
 /**
@@ -230,8 +200,8 @@ function extractOpusFromWebM(data: ArrayBuffer): Uint8Array[] {
 /**
  * Create an audio decoder instance.
  *
- * The decoder will attempt to use native opus bindings if available,
- * falling back to indicating that decoding is not supported.
+ * Uses WASM-based opus decoding that works on all platforms
+ * without requiring native compilation.
  *
  * @param options - Decoder configuration
  * @returns AudioDecoder instance
@@ -243,25 +213,13 @@ export async function createAudioDecoder(options?: {
   const sampleRate = options?.sampleRate ?? 48000;
   const channels = options?.channels ?? 1;
 
-  const opusModule = await getOpusModule();
-  const opusDecoder = opusModule ? opusModule.createDecoder(sampleRate, channels) : null;
+  const opusDecoder = await createOpusDecoderWrapper(sampleRate, channels);
 
   return {
     supports(encoding: AudioEncoding): boolean {
-      if (isRawPCM(encoding)) {
-        return true; // Raw PCM doesn't need decoding
-      }
-
-      if (encoding === "opus" || encoding === "ogg-opus" || encoding === "webm") {
-        return opusDecoder !== null;
-      }
-
-      // WAV can be parsed without external dependencies
-      if (encoding === "wav") {
-        return true;
-      }
-
-      return false;
+      return (
+        encoding === "opus" || encoding === "ogg-opus" || encoding === "webm" || encoding === "wav"
+      );
     },
 
     async decode(data: ArrayBuffer, encoding: AudioEncoding): Promise<DecodedAudio> {
@@ -271,13 +229,13 @@ export async function createAudioDecoder(options?: {
       }
 
       // Opus decoding
-      if (encoding === "opus" && opusDecoder) {
+      if (encoding === "opus") {
         const samples = opusDecoder.decode(new Uint8Array(data));
         return { samples, sampleRate, channels };
       }
 
       // WebM/Ogg-Opus decoding
-      if ((encoding === "webm" || encoding === "ogg-opus") && opusDecoder) {
+      if (encoding === "webm" || encoding === "ogg-opus") {
         const frames = extractOpusFromWebM(data);
         if (frames.length === 0) {
           throw new Error("No opus frames found in container");
@@ -321,7 +279,7 @@ export async function createAudioDecoder(options?: {
     },
 
     dispose(): void {
-      opusDecoder?.destroy();
+      opusDecoder.destroy();
     },
   };
 }
@@ -420,17 +378,4 @@ function decodeWav(data: ArrayBuffer): DecodedAudio {
   }
 
   return { samples, sampleRate, channels };
-}
-
-/**
- * Check if audio decoding is available.
- * This checks if opus/webm decoding is supported in the current environment.
- *
- * @returns Promise resolving to true if decoding is available
- */
-export async function isDecodingAvailable(): Promise<boolean> {
-  const decoder = await createAudioDecoder();
-  const available = decoder.supports("opus");
-  decoder.dispose();
-  return available;
 }

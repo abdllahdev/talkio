@@ -186,7 +186,6 @@ export {
   float32ToLinear16,
   inferEncodingFromTypedArray,
   int16ToFloat32,
-  isDecodingAvailable,
   isRawPCM,
   isTypedArray,
   linear16ToAlaw,
