@@ -1,17 +1,17 @@
-# voice-ai
+# vox
 
 Orchestration library for building realtime voice AI agents in TypeScript. Handles STT, LLM, and TTS coordination with automatic turn management and interruption detection.
 
 ## Installation
 
 ```bash
-npm install voice-ai
+npm install @vox/core
 ```
 
 ## Quick Start
 
 ```typescript
-import { createAgent } from "voice-ai";
+import { createAgent } from "@vox/core";
 
 const agent = createAgent({
   stt: createDeepgramSTT({ apiKey: process.env.DEEPGRAM_API_KEY }),
@@ -58,13 +58,13 @@ agent.stop();
 
 ## Packages
 
-| Package              | Description                |
-| -------------------- | -------------------------- |
-| `voice-ai`           | Core orchestration library |
-| `@voice-ai/deepgram` | Deepgram STT/TTS providers |
+| Package         | Description                |
+| --------------- | -------------------------- |
+| `@vox/core`     | Core orchestration library |
+| `@vox/deepgram` | Deepgram STT/TTS providers |
 
 ```typescript
-import { createDeepgram } from "@voice-ai/deepgram";
+import { createDeepgram } from "@vox/deepgram";
 
 const deepgram = createDeepgram({ apiKey: process.env.DEEPGRAM_API_KEY });
 
@@ -99,7 +99,7 @@ import {
   createCustomSTTProvider,
   createCustomLLMProvider,
   createCustomTTSProvider,
-} from "voice-ai";
+} from "@vox/core";
 
 const sttFormats = [
   { encoding: "linear16", sampleRate: 16000, channels: 1 },

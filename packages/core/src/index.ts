@@ -1,5 +1,5 @@
 /**
- * voice-ai
+ * @vox/core
  *
  * A TypeScript package for building real-time voice AI agents.
  *
@@ -20,8 +20,8 @@
  * ## Quick Start
  *
  * ```typescript
- * import { createAgent } from "voice-ai";
- * import { createDeepgram } from "@voice-ai/deepgram";
+ * import { createAgent } from "@vox/core";
+ * import { createDeepgram } from "@vox/deepgram";
  *
  * const deepgram = createDeepgram({ apiKey: process.env.DEEPGRAM_API_KEY });
  *

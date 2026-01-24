@@ -35,7 +35,7 @@ jobs:
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
-          scope: "@voice-ai"
+          scope: "@vox"
 
       - name: Install dependencies
         run: bun install
@@ -90,13 +90,13 @@ jobs:
         run: |
           TAGS=$(git tag --points-at HEAD)
           for TAG in $TAGS; do
-            if [[ $TAG == voice-ai@* ]]; then
-              PACKAGE_NAME="voice-ai"
-              VERSION="${TAG#voice-ai@}"
-              CHANGELOG_PATH="packages/voice-ai/CHANGELOG.md"
-            elif [[ $TAG == @voice-ai/deepgram@* ]]; then
-              PACKAGE_NAME="@voice-ai/deepgram"
-              VERSION="${TAG#@voice-ai/deepgram@}"
+            if [[ $TAG == @vox/core@* ]]; then
+              PACKAGE_NAME="@vox/core"
+              VERSION="${TAG#@vox/core@}"
+              CHANGELOG_PATH="packages/core/CHANGELOG.md"
+            elif [[ $TAG == @vox/deepgram@* ]]; then
+              PACKAGE_NAME="@vox/deepgram"
+              VERSION="${TAG#@vox/deepgram@}"
               CHANGELOG_PATH="packages/deepgram/CHANGELOG.md"
             else
               continue

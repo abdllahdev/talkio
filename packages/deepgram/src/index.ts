@@ -1,10 +1,10 @@
 /**
- * @voice-ai/deepgram
+ * @vox/deepgram
  *
- * Deepgram STT and TTS providers for voice-ai.
+ * Deepgram STT and TTS providers for @vox/core.
  *
  * This package provides ready-to-use Deepgram providers for speech-to-text
- * and text-to-speech that integrate seamlessly with the voice-ai orchestration library.
+ * and text-to-speech that integrate seamlessly with the @vox/core orchestration library.
  *
  * ## Features
  *
@@ -19,8 +19,8 @@
  *
  * @example Using the factory method (recommended)
  * ```typescript
- * import { createDeepgram } from "@voice-ai/deepgram";
- * import { createAgent } from "voice-ai";
+ * import { createDeepgram } from "@vox/deepgram";
+ * import { createAgent } from "@vox/core";
  *
  * const deepgram = createDeepgram({
  *   apiKey: process.env.DEEPGRAM_API_KEY,
@@ -35,8 +35,8 @@
  *
  * @example Direct imports
  * ```typescript
- * import { createDeepgramSTT, createDeepgramTTS } from "@voice-ai/deepgram";
- * import { createAgent } from "voice-ai";
+ * import { createDeepgramSTT, createDeepgramTTS } from "@vox/deepgram";
+ * import { createAgent } from "@vox/core";
  *
  * const agent = createAgent({
  *   stt: createDeepgramSTT({

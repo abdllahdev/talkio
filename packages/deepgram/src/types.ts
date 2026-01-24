@@ -15,7 +15,7 @@
  * @module deepgram/types
  */
 
-import type { STTProvider, TTSProvider } from "voice-ai";
+import type { STTProvider, TTSProvider } from "@vox/core";
 
 import type { DeepgramSTTInputFormat } from "./deepgram-stt";
 import type { DeepgramTTSOutputFormat } from "./deepgram-tts";

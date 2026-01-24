@@ -1,14 +1,14 @@
 {
-  "name": "@voice-ai/deepgram",
+  "name": "@vox/deepgram",
   "version": "0.1.0",
-  "description": "Deepgram STT and TTS providers for voice-ai",
+  "description": "Deepgram STT and TTS providers for @vox/core",
   "keywords": [
     "deepgram",
     "speech-to-text",
     "stt",
     "text-to-speech",
     "tts",
-    "voice-ai"
+    "vox"
   ],
   "homepage": "https://github.com/abdllahdev/voice-ai/tree/main/packages/deepgram#readme",
   "bugs": {
@@ -52,14 +52,14 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "@voice-ai/tsconfig": "workspace:*",
+    "@vox/core": "workspace:*",
+    "@vox/tsconfig": "workspace:*",
     "tsdown": "^0.19.0-beta.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.16",
-    "voice-ai": "workspace:*"
+    "vitest": "^4.0.16"
   },
   "peerDependencies": {
-    "voice-ai": "workspace:*"
+    "@vox/core": "workspace:*"
   },
   "engines": {
     "node": ">=20"

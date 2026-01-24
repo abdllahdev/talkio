@@ -1,17 +1,17 @@
-# voice-ai
+# @vox/core
 
 Orchestration library for building realtime voice AI agents. Coordinates STT, LLM, and TTS with automatic turn management and interruption detection.
 
 ## Installation
 
 ```bash
-npm install voice-ai
+npm install @vox/core
 ```
 
 ## Quick Start
 
 ```typescript
-import { createAgent } from "voice-ai";
+import { createAgent } from "@vox/core";
 
 const agent = createAgent({
   stt: createDeepgramSTT({ apiKey: process.env.DEEPGRAM_KEY }),
@@ -132,7 +132,7 @@ import {
   createCustomSTTProvider,
   createCustomLLMProvider,
   createCustomTTSProvider,
-} from "voice-ai";
+} from "@vox/core";
 
 // Define supported formats for STT
 const sttFormats = [

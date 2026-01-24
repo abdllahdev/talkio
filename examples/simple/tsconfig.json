@@ -1,5 +1,5 @@
 {
-  "extends": "@voice-ai/tsconfig/bun.json",
+  "extends": "@vox/tsconfig/bun.json",
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",

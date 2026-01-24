@@ -1,4 +1,4 @@
-# voice-ai Package
+# @vox/core Package
 
 Orchestration library for realtime voice AI agents using XState's actor model.
 

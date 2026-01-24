@@ -162,7 +162,7 @@ export interface AgentConfig<
    *
    * @example
    * ```typescript
-   * import { createDeepgram } from "@voice-ai/deepgram";
+   * import { createDeepgram } from "@vox/deepgram";
    * const deepgram = createDeepgram({ apiKey: "..." });
    * stt: deepgram.stt({ model: "nova-3" })
    * ```
@@ -204,7 +204,7 @@ export interface AgentConfig<
    *
    * @example
    * ```typescript
-   * import { createDeepgram } from "@voice-ai/deepgram";
+   * import { createDeepgram } from "@vox/deepgram";
    * const deepgram = createDeepgram({ apiKey: "..." });
    * tts: deepgram.tts({ model: "aura-2-thalia-en" })
    * ```
@@ -220,7 +220,7 @@ export interface AgentConfig<
    *
    * @example
    * ```typescript
-   * import { createSileroVAD } from "@voice-ai/silero";
+   * import { createSileroVAD } from "@vox/silero";
    * vad: createSileroVAD({ threshold: 0.5 })
    * ```
    */

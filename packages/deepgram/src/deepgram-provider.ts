@@ -42,7 +42,7 @@ import type {
  *
  * @example Basic usage
  * ```typescript
- * import { createDeepgram } from "@voice-ai/deepgram";
+ * import { createDeepgram } from "@vox/deepgram";
  *
  * const deepgram = createDeepgram({
  *   apiKey: process.env.DEEPGRAM_API_KEY,

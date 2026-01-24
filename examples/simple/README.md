@@ -1,6 +1,6 @@
 # Simple Voice Agent Example
 
-A minimal example demonstrating real-time voice conversations using `voice-ai`.
+A minimal example demonstrating real-time voice conversations using `@vox/core`.
 
 ## Features
 
@@ -9,7 +9,7 @@ A minimal example demonstrating real-time voice conversations using `voice-ai`.
 - LLM responses using OpenAI GPT-4o-mini
 - Text-to-speech using Deepgram Aura 2
 - Interruption support - speak to interrupt the agent
-- Audio conversion utilities from `voice-ai`
+- Audio conversion utilities from `@vox/core`
 
 ## Prerequisites
 
@@ -45,7 +45,7 @@ bun dev
 ```
 Browser (client.tsx)          Server (server.ts)
 ┌─────────────────────┐       ┌──────────────────────────┐
-│ Microphone          │       │ voice-ai Agent         │
+│ Microphone          │       │ @vox/core Agent        │
 │   ↓                 │       │   ├── STT (Deepgram)     │
 │ ScriptProcessor     │       │   ├── LLM (OpenAI)       │
 │   ↓                 │       │   └── TTS (Deepgram)     │
@@ -68,7 +68,7 @@ Browser (client.tsx)          Server (server.ts)
 - **Input**: 16kHz mono Linear16 PCM
 - **Output**: 24kHz mono Linear16 PCM
 
-The client uses `voice-ai` audio conversion utilities:
+The client uses `@vox/core` audio conversion utilities:
 
 - `float32ToLinear16()` - Convert Web Audio API Float32Array to Linear16
 - `linear16ToFloat32()` - Convert Linear16 to Float32Array for playback
@@ -91,8 +91,8 @@ websocket: {
 ### Client: Using Core Audio Utilities
 
 ```typescript
-// client.tsx - Using voice-ai conversion functions
-import { float32ToLinear16, linear16ToFloat32 } from "voice-ai";
+// client.tsx - Using @vox/core conversion functions
+import { float32ToLinear16, linear16ToFloat32 } from "@vox/core";
 
 // Sending audio from microphone
 processor.onaudioprocess = (e) => {
@@ -108,7 +108,7 @@ audioBuffer.getChannelData(0).set(float32);
 
 ## Available Audio Utilities
 
-`voice-ai` provides comprehensive audio conversion utilities:
+`@vox/core` provides comprehensive audio conversion utilities:
 
 ```typescript
 import {
@@ -130,7 +130,7 @@ import {
   alawToLinear16, // G.711 A-law → Linear16
   linear16ToMulaw, // Linear16 → G.711 μ-law
   linear16ToAlaw, // Linear16 → G.711 A-law
-} from "voice-ai";
+} from "@vox/core";
 ```
 
 ## Production

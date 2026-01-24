@@ -5,8 +5,8 @@ Development guide for the voice-ai monorepo.
 ```
 voice-ai/
 ├── packages/
-│   ├── voice-ai/        # Core orchestration library
-│   └── deepgram/        # @voice-ai/deepgram provider
+│   ├── core/            # Core orchestration library (@vox/core)
+│   └── deepgram/        # @vox/deepgram provider
 ├── tooling/
 │   └── tsconfig/        # Shared TypeScript configs
 ├── turbo.json           # Turborepo configuration
@@ -41,14 +41,14 @@ Run in specific package:
 
 ```bash
 # Use --cwd flag (preferred)
-bun run --cwd packages/voice-ai test
-bun run --cwd packages/voice-ai test test/unit/actors/stt.test.ts
+bun run --cwd packages/core test
+bun run --cwd packages/core test test/unit/actors/stt.test.ts
 
 # Or use absolute paths
-bun run test --cwd /Users/abdllahdev/dev/voice-ai/packages/voice-ai
+bun run test --cwd /Users/abdllahdev/dev/voice-ai/packages/core
 
 # Or use package.json scripts with filters
-bun run test --filter voice-ai
+bun run test --filter @vox/core
 ```
 
 ## Code Style
@@ -86,7 +86,7 @@ bun run test --filter voice-ai
 
 **CRITICAL: Package vs Example App Priority**
 
-- **ALWAYS fix bugs in packages first** (`packages/voice-ai/`, `packages/deepgram/`, etc.)
+- **ALWAYS fix bugs in packages first** (`packages/core/`, `packages/deepgram/`, etc.)
 - **NEVER fix bugs by modifying example apps** (`examples/` directory)
 - Example apps are for demonstration only - they use the packages, they don't define them
 - When a bug is reported, identify the root cause in the package code, not the example usage
@@ -98,6 +98,8 @@ bun run test --filter voice-ai
 - Bug: "SpeechStarted event fires on background noise"
 - ❌ WRONG: Disable VAD in `examples/simple/src/server.ts`
 - ✅ CORRECT: Fix VAD handling in `packages/deepgram/src/deepgram-stt.ts`
+
+Note: The core package has been renamed from `voice-ai` to `@vox/core` and the directory from `packages/voice-ai` to `packages/core`.
 
 ## Comments
 

@@ -3,6 +3,6 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "references": [{ "path": "./packages/voice-ai" }],
+  "references": [{ "path": "./packages/core" }],
   "files": []
 }
