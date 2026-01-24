@@ -15,7 +15,7 @@ src/
 │   └── actors/           # STT, LLM, TTS, VAD, turn-detector, streamer
 ├── audio/
 │   ├── types.ts          # AudioEncoding, AudioFormat
-│   └── convert.ts        # encodeAudio, decodeAudio
+│   └── conversions.ts    # encodeAudio, decodeAudio
 ├── providers/
 │   ├── types.ts          # Provider interfaces
 │   └── factories.ts      # createCustom*Provider functions

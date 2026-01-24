@@ -28,7 +28,6 @@ const agent = createAgent({
   stt: deepgram.stt({ model: "nova-3" }),
   tts: deepgram.tts({ model: "aura-2-thalia-en" }),
   llm: myLLMProvider,
-  streamer: myAudioStreamer,
 });
 
 agent.start();
@@ -122,13 +121,21 @@ interface DeepgramSTTOptions {
 
 **Supported Input Formats:**
 
-| Encoding   | Sample Rates                 | Default  |
-| ---------- | ---------------------------- | -------- |
-| `linear16` | 8000, 16000, 24000, 48000 Hz | 16000 Hz |
-| `mulaw`    | 8000 Hz                      | -        |
-| `alaw`     | 8000 Hz                      | -        |
+| Encoding   | Sample Rates                 | Channels | Default  |
+| ---------- | ---------------------------- | -------- | -------- |
+| `linear16` | 8000, 16000, 24000, 48000 Hz | 1, 2     | 16000 Hz |
+| `linear32` | 16000, 24000, 48000 Hz       | 1, 2     | -        |
+| `flac`     | 16000, 24000, 48000 Hz       | 1, 2     | -        |
+| `opus`     | 8000, 16000, 24000, 48000 Hz | 1, 2     | -        |
+| `ogg-opus` | 8000, 16000, 24000, 48000 Hz | 1, 2     | -        |
+| `speex`    | 8000, 16000, 32000 Hz        | 1        | -        |
+| `mulaw`    | 8000 Hz                      | 1        | -        |
+| `alaw`     | 8000 Hz                      | 1        | -        |
+| `amr-nb`   | 8000 Hz                      | 1        | -        |
+| `amr-wb`   | 16000 Hz                     | 1        | -        |
+| `g729`     | 8000 Hz                      | 1        | -        |
 
-The provider automatically uses its default format (`linear16` at 16000 Hz) unless you specify `audio.input` in `createAgent()`.
+The provider automatically uses its default format (`linear16` at 16000 Hz, mono) unless you specify `audio.input` in `createAgent()`.
 
 ### `createDeepgramTTS(options)`
 
@@ -142,6 +149,8 @@ interface DeepgramTTSOptions {
   // Optional
   apiKey?: string; // Falls back to provider settings or env var
   baseUrl?: string; // Falls back to provider settings
+  encoding?: "linear16" | "mulaw" | "alaw"; // Default: "linear16"
+  sampleRate?: 8000 | 16000 | 24000 | 32000 | 48000; // Default: 24000 for linear16, 8000 for mulaw/alaw
 }
 ```
 
@@ -152,13 +161,13 @@ interface DeepgramTTSOptions {
 
 **Supported Output Formats:**
 
-| Encoding   | Sample Rates                 | Default  |
-| ---------- | ---------------------------- | -------- |
-| `linear16` | 8000, 16000, 24000, 48000 Hz | 24000 Hz |
-| `mulaw`    | 8000 Hz                      | -        |
-| `alaw`     | 8000 Hz                      | -        |
+| Encoding   | Sample Rates                        | Channels | Default  |
+| ---------- | ----------------------------------- | -------- | -------- |
+| `linear16` | 8000, 16000, 24000, 32000, 48000 Hz | 1        | 24000 Hz |
+| `mulaw`    | 8000, 16000 Hz                      | 1        | 8000 Hz  |
+| `alaw`     | 8000, 16000 Hz                      | 1        | 8000 Hz  |
 
-The provider automatically uses its default format (`linear16` at 24000 Hz) unless you specify `audio.output` in `createAgent()`.
+The provider automatically uses its default format (`linear16` at 24000 Hz, mono) unless you specify `audio.output` in `createAgent()`.
 
 ## Configuration
 
@@ -201,7 +210,6 @@ const agent = createAgent({
     model: "aura-2-thalia-en",
   }),
   llm: myLLMProvider,
-  streamer: myAudioStreamer,
   onEvent: (event) => {
     if (event.type === "human-turn:transcript") {
       console.log("Transcript:", event.transcript);

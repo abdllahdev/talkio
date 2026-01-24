@@ -12,11 +12,14 @@ npm install @vox/core
 
 ```typescript
 import { createAgent } from "@vox/core";
+import { createDeepgram } from "@vox/deepgram";
+
+const deepgram = createDeepgram({ apiKey: process.env.DEEPGRAM_API_KEY });
 
 const agent = createAgent({
-  stt: createDeepgramSTT({ apiKey: process.env.DEEPGRAM_API_KEY }),
-  llm: createOpenAILLM({ model: "gpt-4o" }),
-  tts: createElevenLabsTTS({ apiKey: process.env.ELEVENLABS_API_KEY }),
+  stt: deepgram.stt({ model: "nova-3" }),
+  llm: myLLMProvider,
+  tts: deepgram.tts({ model: "aura-2-thalia-en" }),
   onEvent: (event) => {
     switch (event.type) {
       case "human-turn:ended":

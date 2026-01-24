@@ -13,7 +13,7 @@ voice-ai/
 └── package.json         # Root workspace
 ```
 
-Each package has its own `CLAUDE.md` with package-specific guidance.
+Each package has its own `agents.md` with package-specific guidance.
 
 ## Commands
 
