@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
+
 import { audioStreamerActor } from "../../../src/agent/actors/streamer";
 import { createAudioChunk } from "../../helpers";
 

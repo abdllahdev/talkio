@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+
 import { createInitialContext } from "../../../src/agent/context";
 import {
   DEFAULT_AUDIO_CONFIG,

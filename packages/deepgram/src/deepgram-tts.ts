@@ -23,6 +23,7 @@
  */
 
 import type { TTSContext, TTSProvider } from "voice-ai";
+
 import type { DeepgramProviderSettings, DeepgramTTSMessage, DeepgramTTSOptions } from "./types";
 
 const DEFAULT_BASE_URL = "api.deepgram.com";
@@ -257,7 +258,7 @@ export function createDeepgramTTS(
         ws = new WebSocket(url, ["token", apiKey]);
         ws.binaryType = "arraybuffer";
 
-        ws.onopen = () => {
+        ws.addEventListener("open", () => {
           if (ctx.signal.aborted) {
             cleanup();
             return;
@@ -265,9 +266,9 @@ export function createDeepgramTTS(
 
           ws?.send(JSON.stringify({ type: "Speak", text }));
           ws?.send(JSON.stringify({ type: "Flush" }));
-        };
+        });
 
-        ws.onmessage = (event: MessageEvent) => {
+        ws.addEventListener("message", (event: MessageEvent) => {
           if (ctx.signal.aborted || isCompleted) {
             cleanup();
             return;
@@ -314,9 +315,9 @@ export function createDeepgramTTS(
           } catch {
             // Ignore non-JSON messages
           }
-        };
+        });
 
-        ws.onerror = (event) => {
+        ws.addEventListener("error", (event) => {
           if (!ctx.signal.aborted && !isCompleted) {
             ctx.error(
               new Error(
@@ -325,9 +326,9 @@ export function createDeepgramTTS(
             );
           }
           cleanup();
-        };
+        });
 
-        ws.onclose = (event) => {
+        ws.addEventListener("close", (event) => {
           if (
             event.code !== 1000 &&
             event.code !== 1005 &&
@@ -340,7 +341,7 @@ export function createDeepgramTTS(
             );
           }
           cleanup();
-        };
+        });
       } catch (error) {
         if (!ctx.signal.aborted) {
           ctx.error(

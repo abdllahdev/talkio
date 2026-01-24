@@ -45,6 +45,7 @@ export {
   singleAssistantMessage,
   // Message fixtures
   singleUserMessage,
+  TELEPHONY_AUDIO_FORMAT,
   // Delay helper
   tick,
 } from "./fixtures";

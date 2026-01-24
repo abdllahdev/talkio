@@ -20,6 +20,7 @@
  */
 
 import { fromCallback } from "xstate";
+
 import type { AgentConfig } from "../../types/config";
 import type { MachineEvent } from "../../types/events";
 
@@ -32,22 +33,58 @@ export const turnDetectorActor = fromCallback<
 >(({ sendBack, receive, input }) => {
   const { config, abortSignal } = input;
   const provider = config.turnDetector;
+  const debug = config.debug ?? false;
 
   if (!provider) return () => {};
 
-  provider.start({
-    turnEnd: (transcript) => sendBack({ type: "_turn:end", transcript, timestamp: Date.now() }),
-    turnAbandoned: (reason) => sendBack({ type: "_turn:abandoned", reason, timestamp: Date.now() }),
-    signal: abortSignal,
-  });
+  let isAborted = false;
+
+  const handleAbort = () => {
+    isAborted = true;
+  };
+
+  abortSignal.addEventListener("abort", handleAbort);
+
+  try {
+    provider.start({
+      turnEnd: (transcript) => {
+        if (isAborted) return;
+        sendBack({ type: "_turn:end", transcript, timestamp: Date.now() });
+      },
+      turnAbandoned: (reason) => {
+        if (isAborted) return;
+        sendBack({ type: "_turn:abandoned", reason, timestamp: Date.now() });
+      },
+      signal: abortSignal,
+    });
+  } catch (error) {
+    if (!isAborted && debug) {
+      console.error("[turn-detector-actor] Error starting provider:", error);
+    }
+  }
 
   receive((event) => {
-    if (event.type === "_stt:transcript") {
-      provider.onTranscript(event.text, event.isFinal);
-    } else if (event.type === "_vad:speech-end") {
-      provider.onSpeechEnd(event.duration);
+    if (isAborted) return;
+    try {
+      if (event.type === "_stt:transcript") {
+        provider.onTranscript(event.text, event.isFinal);
+      } else if (event.type === "_vad:speech-end") {
+        provider.onSpeechEnd(event.duration);
+      }
+    } catch (error) {
+      if (!isAborted && debug) {
+        console.error("[turn-detector-actor] Error processing event:", error);
+      }
     }
   });
 
-  return () => provider.stop();
+  return () => {
+    isAborted = true;
+    abortSignal.removeEventListener("abort", handleAbort);
+    try {
+      provider.stop();
+    } catch (error) {
+      if (debug) console.error("[turn-detector-actor] Error stopping provider:", error);
+    }
+  };
 });

@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
+
 import type { LLMContext, LLMFunction, LLMInput, LLMProvider, Message } from "../../../src";
 import { llmActor } from "../../../src/agent/actors/llm";
 import { mockSTTProvider, mockTTSProvider, singleUserMessage } from "../../helpers";

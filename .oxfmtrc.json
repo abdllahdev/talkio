@@ -9,5 +9,6 @@
   "bracketSpacing": true,
   "arrowParens": "always",
   "endOfLine": "lf",
-  "quoteProps": "as-needed"
+  "quoteProps": "as-needed",
+  "experimentalSortPackageJson": true
 }

@@ -19,6 +19,7 @@
  */
 
 import { fromCallback } from "xstate";
+
 import type { NormalizedAgentConfig } from "../../types/config";
 import type { MachineEvent } from "../../types/events";
 
@@ -31,22 +32,65 @@ export const vadActor = fromCallback<
 >(({ sendBack, receive, input }) => {
   const { config, abortSignal } = input;
   const provider = config.vad;
+  const debug = config.debug ?? false;
 
   if (!provider) return () => {};
 
-  provider.start({
-    speechStart: () => sendBack({ type: "_vad:speech-start", timestamp: Date.now() }),
-    speechEnd: (duration) => sendBack({ type: "_vad:speech-end", duration, timestamp: Date.now() }),
-    speechProbability: (value) =>
-      sendBack({ type: "_vad:probability", value, timestamp: Date.now() }),
-    signal: abortSignal,
-  });
+  let isAborted = false;
+
+  const handleAbort = () => {
+    isAborted = true;
+  };
+
+  abortSignal.addEventListener("abort", handleAbort);
+
+  try {
+    provider.start({
+      speechStart: () => {
+        if (isAborted) return;
+        sendBack({ type: "_vad:speech-start", timestamp: Date.now() });
+      },
+      speechEnd: (duration) => {
+        if (isAborted) return;
+        sendBack({ type: "_vad:speech-end", duration, timestamp: Date.now() });
+      },
+      speechProbability: (value) => {
+        if (isAborted) return;
+        sendBack({ type: "_vad:probability", value, timestamp: Date.now() });
+      },
+      signal: abortSignal,
+    });
+  } catch (error) {
+    if (!isAborted) {
+      if (debug) console.error("[vad-actor] Error starting provider:", error);
+      sendBack({
+        type: "_vad:error",
+        error: error instanceof Error ? error : new Error(String(error)),
+        timestamp: Date.now(),
+      });
+    }
+  }
 
   receive((event) => {
+    if (isAborted) return;
     if (event.type === "_audio:input") {
-      provider.processAudio(event.audio);
+      try {
+        provider.processAudio(event.audio);
+      } catch (error) {
+        if (!isAborted && debug) {
+          console.error("[vad-actor] Error processing audio:", error);
+        }
+      }
     }
   });
 
-  return () => provider.stop();
+  return () => {
+    isAborted = true;
+    abortSignal.removeEventListener("abort", handleAbort);
+    try {
+      provider.stop();
+    } catch (error) {
+      if (debug) console.error("[vad-actor] Error stopping provider:", error);
+    }
+  };
 });

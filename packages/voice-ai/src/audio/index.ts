@@ -1,23 +1,18 @@
 /**
  * Audio Module
  *
- * Public API for audio format types and utilities.
+ * Public API for audio format types, conversion utilities, and preprocessing.
  *
- * This module re-exports all audio-related types and functions from the
- * internal types module, providing a clean public API for audio configuration.
- *
- * **Exports**:
- * - Type definitions: `AudioFormat`, `AudioEncoding`, `AudioConfig`, etc.
- * - Normalization functions: `normalizeFormat()`, `normalizeAudioConfig()`
- * - Default configurations: `DEFAULT_AUDIO_FORMAT`, `DEFAULT_AUDIO_CONFIG`
- *
- * Use this module when you need to work with audio formats in your application,
- * such as when configuring the agent's audio input/output or when creating
- * custom providers that need to validate audio formats.
+ * This module provides comprehensive audio handling capabilities:
+ * - **Types**: `AudioFormat`, `AudioEncoding`, `AudioConfig`, etc.
+ * - **Conversions**: `float32ToLinear16`, `resample`, `stereoToMono`, etc.
+ * - **Decoding**: `createAudioDecoder` for opus/webm decoding
+ * - **Preprocessing**: `createAudioPreprocessor` for normalizing any audio input
  *
  * @module audio
  */
 
+// Types
 export type {
   AudioConfig,
   AudioEncoding,
@@ -38,3 +33,31 @@ export {
   normalizeAudioConfig,
   normalizeFormat,
 } from "./types";
+
+// Conversions
+export {
+  float32ToInt16,
+  int16ToFloat32,
+  linear16ToFloat32,
+  float32ToLinear16,
+  stereoToMono,
+  resample,
+  resampleInt16,
+  mulawToLinear16,
+  alawToLinear16,
+  linear16ToMulaw,
+  linear16ToAlaw,
+} from "./conversions";
+
+// Decoder
+export type { DecodedAudio, AudioDecoder } from "./decoder";
+export { createAudioDecoder, requiresDecoding, isRawPCM, isDecodingAvailable } from "./decoder";
+
+// Preprocessor
+export type {
+  AudioInput,
+  AudioInputConfig,
+  AudioPreprocessor,
+  AudioPreprocessorOptions,
+} from "./preprocessor";
+export { createAudioPreprocessor, isTypedArray, inferEncodingFromTypedArray } from "./preprocessor";

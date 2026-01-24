@@ -17,6 +17,7 @@
  */
 
 import { fromCallback } from "xstate";
+
 import { isLLMProvider } from "../../providers/types";
 import type { Message } from "../../types/common";
 import type { AgentConfig } from "../../types/config";
@@ -34,24 +35,87 @@ export const llmActor = fromCallback<
   }
 >(({ sendBack, input }) => {
   const { config, messages, abortSignal, sayFn, interruptFn, isSpeakingFn } = input;
+  const debug = config.debug ?? false;
+
+  let isAborted = false;
+
+  const handleAbort = () => {
+    isAborted = true;
+  };
+
+  abortSignal.addEventListener("abort", handleAbort);
+
+  // Check if already aborted before starting
+  if (abortSignal.aborted) {
+    isAborted = true;
+    return () => {
+      abortSignal.removeEventListener("abort", handleAbort);
+    };
+  }
+
+  // Set up timeout
+  const timeoutMs = config.timeout?.llmMs ?? 30000;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  if (timeoutMs > 0) {
+    timeoutId = setTimeout(() => {
+      if (!isAborted) {
+        isAborted = true;
+        if (debug) console.error("[llm-actor] Timeout after", timeoutMs, "ms");
+        sendBack({
+          type: "_llm:error",
+          error: new Error(`LLM timeout after ${timeoutMs}ms`),
+          timestamp: Date.now(),
+        });
+      }
+    }, timeoutMs);
+  }
 
   const ctx = {
     messages,
-    token: (token: string) => sendBack({ type: "_llm:token", token, timestamp: Date.now() }),
-    sentence: (sentence: string, index: number) =>
-      sendBack({ type: "_llm:sentence", sentence, index, timestamp: Date.now() }),
-    complete: (fullText: string) =>
-      sendBack({ type: "_llm:complete", fullText, timestamp: Date.now() }),
-    error: (error: Error) => sendBack({ type: "_llm:error", error, timestamp: Date.now() }),
+    token: (token: string) => {
+      if (isAborted) return;
+      sendBack({ type: "_llm:token", token, timestamp: Date.now() });
+    },
+    sentence: (sentence: string, index: number) => {
+      if (isAborted) return;
+      sendBack({ type: "_llm:sentence", sentence, index, timestamp: Date.now() });
+    },
+    complete: (fullText: string) => {
+      if (isAborted) return;
+      if (timeoutId) clearTimeout(timeoutId);
+      sendBack({ type: "_llm:complete", fullText, timestamp: Date.now() });
+    },
+    error: (error: Error) => {
+      if (isAborted) return;
+      sendBack({ type: "_llm:error", error, timestamp: Date.now() });
+    },
     say: sayFn,
     interrupt: interruptFn,
     isSpeaking: isSpeakingFn,
     signal: abortSignal,
   };
 
-  if (isLLMProvider(config.llm)) {
-    config.llm.generate(messages, ctx);
-  } else {
-    config.llm(ctx);
+  try {
+    if (isLLMProvider(config.llm)) {
+      config.llm.generate(messages, ctx);
+    } else {
+      config.llm(ctx);
+    }
+  } catch (error) {
+    if (!isAborted) {
+      if (debug) console.error("[llm-actor] Error starting generation:", error);
+      sendBack({
+        type: "_llm:error",
+        error: error instanceof Error ? error : new Error(String(error)),
+        timestamp: Date.now(),
+      });
+    }
   }
+
+  return () => {
+    isAborted = true;
+    if (timeoutId) clearTimeout(timeoutId);
+    abortSignal.removeEventListener("abort", handleAbort);
+  };
 });

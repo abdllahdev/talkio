@@ -18,6 +18,7 @@
  */
 
 import { fromCallback } from "xstate";
+
 import type { NormalizedAgentConfig } from "../../types/config";
 import type { MachineEvent } from "../../types/events";
 
@@ -33,42 +34,82 @@ export const sttActor = fromCallback<
   const inputFormat = config.audio.input;
   const debug = config.debug ?? false;
   let audioChunksReceived = 0;
+  let isAborted = false;
+
+  const handleAbort = () => {
+    isAborted = true;
+  };
+
+  abortSignal.addEventListener("abort", handleAbort);
 
   if (debug) console.log("[stt-actor] Starting STT provider with format:", inputFormat);
 
-  provider.start({
-    audioFormat: inputFormat,
-    transcript: (text, isFinal) => {
-      if (debug) console.log("[stt-actor] Transcript:", text, "final:", isFinal);
-      sendBack({ type: "_stt:transcript", text, isFinal, timestamp: Date.now() });
-    },
-    speechStart: () => {
-      if (debug) console.log("[stt-actor] Speech start detected");
-      sendBack({ type: "_stt:speech-start", timestamp: Date.now() });
-    },
-    speechEnd: () => {
-      if (debug) console.log("[stt-actor] Speech end detected");
-      sendBack({ type: "_stt:speech-end", timestamp: Date.now() });
-    },
-    error: (error) => {
-      if (debug) console.error("[stt-actor] Error:", error.message);
-      sendBack({ type: "_stt:error", error, timestamp: Date.now() });
-    },
-    signal: abortSignal,
-  });
+  try {
+    provider.start({
+      audioFormat: inputFormat,
+      transcript: (text, isFinal) => {
+        if (isAborted) return;
+        if (debug) console.log("[stt-actor] Transcript:", text, "final:", isFinal);
+        sendBack({ type: "_stt:transcript", text, isFinal, timestamp: Date.now() });
+      },
+      speechStart: () => {
+        if (isAborted) return;
+        if (debug) console.log("[stt-actor] Speech start detected");
+        sendBack({ type: "_stt:speech-start", timestamp: Date.now() });
+      },
+      speechEnd: () => {
+        if (isAborted) return;
+        if (debug) console.log("[stt-actor] Speech end detected");
+        sendBack({ type: "_stt:speech-end", timestamp: Date.now() });
+      },
+      error: (error) => {
+        if (isAborted) return;
+        if (debug) console.error("[stt-actor] Error:", error.message);
+        sendBack({ type: "_stt:error", error, timestamp: Date.now() });
+      },
+      signal: abortSignal,
+    });
+  } catch (error) {
+    if (!isAborted) {
+      if (debug) console.error("[stt-actor] Error starting provider:", error);
+      sendBack({
+        type: "_stt:error",
+        error: error instanceof Error ? error : new Error(String(error)),
+        timestamp: Date.now(),
+      });
+    }
+  }
 
   receive((event) => {
+    if (isAborted) return;
     if (event.type === "_audio:input") {
       audioChunksReceived++;
       if (debug && audioChunksReceived % 100 === 1) {
         console.log("[stt-actor] Audio chunks received:", audioChunksReceived);
       }
-      provider.sendAudio(event.audio);
+      try {
+        provider.sendAudio(event.audio);
+      } catch (error) {
+        if (!isAborted) {
+          if (debug) console.error("[stt-actor] Error sending audio:", error);
+          sendBack({
+            type: "_stt:error",
+            error: error instanceof Error ? error : new Error(String(error)),
+            timestamp: Date.now(),
+          });
+        }
+      }
     }
   });
 
   return () => {
+    isAborted = true;
+    abortSignal.removeEventListener("abort", handleAbort);
     if (debug) console.log("[stt-actor] Stopping STT provider");
-    provider.stop();
+    try {
+      provider.stop();
+    } catch (error) {
+      if (debug) console.error("[stt-actor] Error stopping provider:", error);
+    }
   };
 });

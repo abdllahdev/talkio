@@ -8,8 +8,5 @@ export default defineConfig({
   outDir: "dist",
   target: "es2022",
   external: ["voice-ai"],
-  minify: {
-    mangle: true,
-    compress: true,
-  },
+  minify: true,
 });

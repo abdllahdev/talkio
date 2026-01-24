@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+
 import { createAgent, type AgentEvent } from "../../src";
 import {
   createCapturingLLMProvider,

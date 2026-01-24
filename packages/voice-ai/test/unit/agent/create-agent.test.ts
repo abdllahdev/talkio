@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+
 import { createAgent } from "../../../src";
 import {
   LOW_QUALITY_AUDIO_CONFIG,

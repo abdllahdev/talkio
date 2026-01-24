@@ -1,7 +1,9 @@
 import { openai } from "@ai-sdk/openai";
-import { createDeepgram } from "@voice-ai/deepgram";
 import { streamText } from "ai";
+
+import { createDeepgram } from "@voice-ai/deepgram";
 import { createAgent, type LLMContext } from "voice-ai";
+
 import index from "./index.html";
 
 const PORT = 3000;
@@ -81,6 +83,10 @@ function createSession(ws: WebSocketClient): ClientSession {
     stt: deepgram.stt({ model: "nova-3" }),
     llm,
     tts: deepgram.tts({ model: "aura-2-thalia-en" }),
+    audio: {
+      // Client sends Linear16 PCM (converted from Float32Array using @sada/core utilities)
+      input: { encoding: "linear16", sampleRate: 16000, channels: 1 },
+    },
     debug: true,
     interruption: {
       enabled: true,
@@ -177,14 +183,10 @@ Bun.serve({
       const session = sessions.get(client);
       if (!session) return;
 
-      if (message instanceof ArrayBuffer) {
+      // sendAudio accepts multiple input types: ArrayBuffer, Buffer, Uint8Array,
+      // Int16Array, Float32Array - no manual conversion needed!
+      if (message instanceof ArrayBuffer || ArrayBuffer.isView(message)) {
         session.agent.sendAudio(message);
-      } else if (ArrayBuffer.isView(message)) {
-        const buffer = message.buffer.slice(
-          message.byteOffset,
-          message.byteOffset + message.byteLength,
-        );
-        session.agent.sendAudio(buffer);
       }
     },
     close(ws) {

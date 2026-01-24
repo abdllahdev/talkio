@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
+
 import type { TurnDetectorContext, TurnDetectorProvider } from "../../../src";
 import { turnDetectorActor } from "../../../src/agent/actors/turn-detector";
 import { mockLLMProvider, mockSTTProvider, mockTTSProvider } from "../../helpers";

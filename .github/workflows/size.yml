@@ -24,5 +24,10 @@ jobs:
 
       - name: Check bundle size
         run: |
-          echo "📦 Bundle size:"
-          du -sh dist/*
+          echo "📦 Bundle sizes:"
+          for pkg in packages/*/dist; do
+            if [ -d "$pkg" ]; then
+              echo "$(dirname $pkg | xargs basename):"
+              du -sh "$pkg"/*
+            fi
+          done

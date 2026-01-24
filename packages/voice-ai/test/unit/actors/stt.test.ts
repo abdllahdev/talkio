@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
+
 import type { STTContext, STTProvider, NormalizedAgentConfig } from "../../../src";
 import { sttActor } from "../../../src/agent/actors/stt";
 import {

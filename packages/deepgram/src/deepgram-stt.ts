@@ -24,6 +24,7 @@
  */
 
 import type { STTContext, STTProvider } from "voice-ai";
+
 import type { DeepgramProviderSettings, DeepgramSTTMessage, DeepgramSTTOptions } from "./types";
 
 /**
@@ -323,7 +324,7 @@ export function createDeepgramSTT(
           console.log("[deepgram-stt] Connecting to:", url.replace(/token=[^&]+/, "token=***"));
         ws = new WebSocket(url, ["token", apiKey]);
 
-        ws.onopen = () => {
+        ws.addEventListener("open", () => {
           isConnected = true;
           if (debug)
             console.log(
@@ -332,24 +333,16 @@ export function createDeepgramSTT(
               "buffered chunks",
             );
           flushBuffer();
-        };
+        });
 
-        ws.onmessage = handleMessage;
+        ws.addEventListener("message", handleMessage);
 
-        ws.onerror = (event) => {
-          if (debug)
-            console.error(
-              "[deepgram-stt] WebSocket error:",
-              (event as ErrorEvent).message ?? "Unknown error",
-            );
-          ctx?.error(
-            new Error(
-              `Deepgram WebSocket error: ${(event as ErrorEvent).message ?? "Unknown error"}`,
-            ),
-          );
-        };
+        ws.addEventListener("error", () => {
+          if (debug) console.error("[deepgram-stt] WebSocket error: Connection failed");
+          ctx?.error(new Error("Deepgram WebSocket error: Connection failed"));
+        });
 
-        ws.onclose = (event) => {
+        ws.addEventListener("close", (event) => {
           isConnected = false;
           if (debug) console.log("[deepgram-stt] WebSocket closed:", event.code, event.reason);
           if (event.code !== 1000 && event.code !== 1005 && ctx) {
@@ -357,7 +350,7 @@ export function createDeepgramSTT(
               new Error(`Deepgram WebSocket closed: ${event.reason || `code ${event.code}`}`),
             );
           }
-        };
+        });
       } catch (error) {
         if (debug) console.error("[deepgram-stt] Failed to connect:", error);
         ctx?.error(error instanceof Error ? error : new Error("Failed to connect to Deepgram"));

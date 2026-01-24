@@ -48,7 +48,7 @@
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build",
-    "clean": "rm -rf node_modules dist .tsbuildinfo coverage"
+    "clean": "git clean -xdf node_modules dist .turbo .tsbuildinfo"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

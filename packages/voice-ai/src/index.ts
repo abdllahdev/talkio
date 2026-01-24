@@ -91,6 +91,11 @@ export {
 } from "./types/config";
 
 export type {
+  AgentErrorEvent,
+  AgentEvent,
+  AgentLifecycleEvent,
+  AgentStartedEvent,
+  AgentStoppedEvent,
   AITurnAudioEvent,
   AITurnEndedEvent,
   AITurnEvent,
@@ -98,11 +103,6 @@ export type {
   AITurnSentenceEvent,
   AITurnStartedEvent,
   AITurnTokenEvent,
-  AgentErrorEvent,
-  AgentEvent,
-  AgentLifecycleEvent,
-  AgentStartedEvent,
-  AgentStoppedEvent,
   DebugEvent,
   HumanTurnAbandonedEvent,
   HumanTurnEndedEvent,
@@ -116,8 +116,8 @@ export type {
 } from "./types/events";
 
 export type {
-  AITurnMetrics,
   AgentMetrics,
+  AITurnMetrics,
   AudioMetrics,
   ContentMetrics,
   ErrorMetrics,
@@ -164,3 +164,37 @@ export type {
   CreateCustomTurnDetectorProviderOptions,
   CreateCustomVADProviderOptions,
 } from "./providers/types";
+
+// Audio utilities
+export type {
+  AudioDecoder,
+  AudioInput,
+  AudioInputConfig,
+  AudioPreprocessor,
+  AudioPreprocessorOptions,
+  DecodedAudio,
+} from "./audio";
+
+export {
+  alawToLinear16,
+  // Decoder
+  createAudioDecoder,
+  // Preprocessor
+  createAudioPreprocessor,
+  // Conversions
+  float32ToInt16,
+  float32ToLinear16,
+  inferEncodingFromTypedArray,
+  int16ToFloat32,
+  isDecodingAvailable,
+  isRawPCM,
+  isTypedArray,
+  linear16ToAlaw,
+  linear16ToFloat32,
+  linear16ToMulaw,
+  mulawToLinear16,
+  requiresDecoding,
+  resample,
+  resampleInt16,
+  stereoToMono,
+} from "./audio";

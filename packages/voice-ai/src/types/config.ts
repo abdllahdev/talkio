@@ -63,6 +63,28 @@ export interface InterruptionConfig {
 }
 
 /**
+ * Timeout configuration for provider operations.
+ *
+ * @example
+ * ```typescript
+ * const agent = createAgent({
+ *   stt, llm, tts,
+ *   timeout: {
+ *     llmMs: 30000,  // 30 seconds for LLM
+ *     ttsMs: 10000,  // 10 seconds for TTS
+ *   },
+ * });
+ * ```
+ */
+export interface TimeoutConfig {
+  /** Timeout for LLM generation in milliseconds. @default 30000 */
+  llmMs?: number;
+
+  /** Timeout for TTS synthesis in milliseconds. @default 10000 */
+  ttsMs?: number;
+}
+
+/**
  * Silence detection configuration.
  *
  * Detects when user is silent for too long while agent is listening,
@@ -257,6 +279,22 @@ export interface AgentConfig<
   silence?: SilenceConfig;
 
   /**
+   * **Optional.** Timeout configuration for provider operations.
+   *
+   * Prevents the agent from hanging indefinitely if a provider
+   * doesn't respond. When a timeout occurs, an error event is emitted.
+   *
+   * @example
+   * ```typescript
+   * timeout: {
+   *   llmMs: 30000,  // 30 second timeout for LLM
+   *   ttsMs: 10000,  // 10 second timeout for TTS
+   * }
+   * ```
+   */
+  timeout?: TimeoutConfig;
+
+  /**
    * **Optional.** Audio configuration with separate input and output formats.
    *
    * If omitted, the provider's default formats are used:
@@ -306,6 +344,17 @@ export interface AgentConfig<
    * ```
    */
   onEvent?: (event: AgentEvent) => void;
+
+  /**
+   * **Optional.** Maximum number of messages to retain in conversation history.
+   *
+   * When the message count exceeds this limit, older messages are removed
+   * to prevent unbounded memory growth in long-running agents.
+   * System messages are preserved when trimming.
+   *
+   * @default 100
+   */
+  maxMessages?: number;
 
   /**
    * **Optional.** Enable debug logging for internal events.

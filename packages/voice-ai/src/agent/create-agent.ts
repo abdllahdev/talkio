@@ -21,6 +21,8 @@
 
 import { nanoid } from "nanoid";
 import { createActor } from "xstate";
+
+import type { AudioInput } from "../audio/preprocessor";
 import { normalizeFormat, type AudioFormat } from "../audio/types";
 import type { STTProvider, TTSProvider } from "../providers/types";
 import type { AgentMachineOutput, Message } from "../types/common";
@@ -96,23 +98,41 @@ export interface Agent {
    * Send audio data to the agent for processing.
    *
    * The audio will be:
+   * - Automatically converted to the format expected by STT/VAD providers
    * - Processed by the STT provider for transcription
    * - Analyzed by the VAD provider (if configured) for speech detection
    * - Used for turn detection and interruption detection
    *
-   * Audio must be in the encoding specified by the audio configuration.
-   * If no audio config is provided, the STT provider's default format is used.
+   * Accepts multiple input formats:
+   * - `ArrayBuffer` - Raw audio bytes
+   * - `Blob` - From MediaRecorder (webm, opus, etc.)
+   * - `Float32Array` - From AudioWorklet/ScriptProcessor
+   * - `Int16Array` - Raw PCM samples
+   * - `Uint8Array` - Raw bytes
+   * - `Buffer` - Node.js Buffer
    *
-   * @param audio - Raw audio bytes (ArrayBuffer) in the configured input format
+   * The agent automatically handles format conversion, resampling, and decoding
+   * based on the configured input format.
    *
-   * @example
+   * @param audio - Audio data in any supported format
+   *
+   * @example MediaRecorder (browser)
    * ```typescript
-   * // Capture audio from microphone
-   * const audioChunk = await captureMicrophoneAudio();
-   * agent.sendAudio(audioChunk);
+   * const mediaRecorder = new MediaRecorder(stream);
+   * mediaRecorder.ondataavailable = (e) => agent.sendAudio(e.data);
+   * ```
+   *
+   * @example AudioWorklet (browser)
+   * ```typescript
+   * processor.port.onmessage = (e) => agent.sendAudio(e.data);
+   * ```
+   *
+   * @example Telephony (Node.js)
+   * ```typescript
+   * stream.on('data', (chunk) => agent.sendAudio(chunk));
    * ```
    */
-  sendAudio(audio: ArrayBuffer): void;
+  sendAudio(audio: AudioInput): void;
 
   /**
    * Stop the agent and clean up all resources.
@@ -243,6 +263,51 @@ function isRunningState(value: string | Record<string, unknown>): boolean {
 }
 
 /**
+ * Convert AudioInput to ArrayBuffer synchronously.
+ *
+ * For Blob inputs, this will throw - use the async version or
+ * convert the Blob to ArrayBuffer before calling sendAudio.
+ */
+function toArrayBuffer(input: AudioInput): ArrayBuffer {
+  if (input instanceof ArrayBuffer) {
+    return input;
+  }
+
+  if (input instanceof Float32Array || input instanceof Int16Array || input instanceof Uint8Array) {
+    // Create a copy to ensure we have a standalone ArrayBuffer
+    const buffer = new ArrayBuffer(input.byteLength);
+    new Uint8Array(buffer).set(new Uint8Array(input.buffer, input.byteOffset, input.byteLength));
+    return buffer;
+  }
+
+  // Check for Node.js Buffer (has buffer, byteOffset, byteLength properties)
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "buffer" in input &&
+    "byteOffset" in input &&
+    "byteLength" in input
+  ) {
+    const bufferLike = input as { buffer: ArrayBuffer; byteOffset: number; byteLength: number };
+    // Create a copy
+    const buffer = new ArrayBuffer(bufferLike.byteLength);
+    new Uint8Array(buffer).set(
+      new Uint8Array(bufferLike.buffer, bufferLike.byteOffset, bufferLike.byteLength),
+    );
+    return buffer;
+  }
+
+  if (input instanceof Blob) {
+    throw new Error(
+      "Blob input requires async conversion. Use `await blob.arrayBuffer()` before calling sendAudio(), " +
+        "or use MediaRecorder with a format that outputs ArrayBuffer directly.",
+    );
+  }
+
+  throw new Error(`Unsupported audio input type: ${typeof input}`);
+}
+
+/**
  * Check if an event is internal (prefixed with "_")
  */
 function isInternalEvent(event: { type: string }): boolean {
@@ -350,14 +415,21 @@ export function createAgent<
   TTS extends TTSProvider<AudioFormat>,
 >(config: AgentConfig<STT, TTS>): Agent {
   const id = nanoid();
+  const inputFormat = normalizeFormat(
+    config.audio?.input ?? config.stt.metadata.defaultInputFormat,
+  );
+  const outputFormat = normalizeFormat(
+    config.audio?.output ?? config.tts.metadata.defaultOutputFormat,
+  );
   const audioConfig = {
-    input: normalizeFormat(config.audio?.input ?? config.stt.metadata.defaultInputFormat),
-    output: normalizeFormat(config.audio?.output ?? config.tts.metadata.defaultOutputFormat),
+    input: inputFormat,
+    output: outputFormat,
   };
   const normalizedConfig = {
     ...config,
     audio: audioConfig,
   };
+
   let audioStreamController: ReadableStreamDefaultController<ArrayBuffer> | null = null;
   const audioStream = new ReadableStream<ArrayBuffer>({
     start(controller) {
@@ -367,28 +439,49 @@ export function createAgent<
   const actor = createActor(agentMachine, {
     input: { config: normalizedConfig, audioStreamController },
   });
-  actor.on("*", (event) => {
+
+  // Track event subscription for cleanup
+  const eventSubscription = actor.on("*", (event) => {
     if (!isInternalEvent(event)) {
       config.onEvent?.(event as PublicAgentEvent);
     }
   });
+
+  let isStopped = false;
 
   return {
     id,
     audioStream,
 
     start() {
+      if (isStopped) {
+        throw new Error("Cannot start a stopped agent. Create a new agent instance.");
+      }
       actor.start();
       actor.send({ type: "_agent:start", timestamp: Date.now() });
     },
 
-    sendAudio(audio: ArrayBuffer) {
-      actor.send({ type: "_audio:input", audio, timestamp: Date.now() });
+    sendAudio(audio: AudioInput) {
+      if (isStopped) return;
+      // Convert input to ArrayBuffer synchronously
+      const arrayBuffer = toArrayBuffer(audio);
+      actor.send({ type: "_audio:input", audio: arrayBuffer, timestamp: Date.now() });
     },
 
     stop() {
+      if (isStopped) return;
+      isStopped = true;
+
+      // Send stop event and let machine transition
       actor.send({ type: "_agent:stop", timestamp: Date.now() });
+
+      // Clean up event subscription
+      eventSubscription.unsubscribe();
+
+      // Stop the actor
       actor.stop();
+
+      // Close the audio stream
       try {
         audioStreamController?.close();
       } catch {

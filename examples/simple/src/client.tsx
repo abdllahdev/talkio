@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { float32ToLinear16, linear16ToFloat32 } from "voice-ai";
+
 const INPUT_SAMPLE_RATE = 16000;
 const OUTPUT_SAMPLE_RATE = 24000;
 
@@ -10,26 +12,6 @@ type LogEntry = {
 };
 
 type ConnectionStatus = "disconnected" | "connected" | "error";
-
-function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(float32Array.length * 2);
-  const view = new DataView(buffer);
-  for (let i = 0; i < float32Array.length; i++) {
-    const sample = float32Array[i] ?? 0;
-    const s = Math.max(-1, Math.min(1, sample));
-    view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-  }
-  return buffer;
-}
-
-function int16ToFloat32(buffer: ArrayBuffer): Float32Array {
-  const view = new DataView(buffer);
-  const float32 = new Float32Array(buffer.byteLength / 2);
-  for (let i = 0; i < float32.length; i++) {
-    float32[i] = view.getInt16(i * 2, true) / 0x8000;
-  }
-  return float32;
-}
 
 export function VoiceAgentDemo() {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
@@ -63,16 +45,16 @@ export function VoiceAgentDemo() {
     isPlayingRef.current = true;
     const buffer = audioQueueRef.current.shift();
     if (!buffer) return;
-    const float32 = int16ToFloat32(buffer);
+    const float32 = linear16ToFloat32(buffer);
     const audioBuffer = audioContextRef.current.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
     audioBuffer.getChannelData(0).set(float32);
     const source = audioContextRef.current.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(audioContextRef.current.destination);
-    source.onended = () => {
+    source.addEventListener("ended", () => {
       isPlayingRef.current = false;
       processAudioQueue();
-    };
+    });
     source.start();
   }, []);
 
@@ -125,7 +107,7 @@ export function VoiceAgentDemo() {
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
-      ws.onopen = () => {
+      ws.addEventListener("open", () => {
         setStatus("connected");
         setStatusText("Connected - Speak now!");
         addLog("Connected to server");
@@ -138,19 +120,21 @@ export function VoiceAgentDemo() {
         const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
 
-        processor.onaudioprocess = (e) => {
+        processor.addEventListener("audioprocess", (e) => {
           if (ws.readyState === WebSocket.OPEN) {
+            // Get Float32Array from Web Audio API and convert to Linear16
+            // using @sada/core utilities - no need for manual conversion!
             const float32 = e.inputBuffer.getChannelData(0);
-            const pcm16 = floatTo16BitPCM(float32);
+            const pcm16 = float32ToLinear16(float32);
             ws.send(pcm16);
           }
-        };
+        });
 
         source.connect(processor);
         processor.connect(audioContextRef.current.destination);
-      };
+      });
 
-      ws.onmessage = (event) => {
+      ws.addEventListener("message", (event) => {
         if (event.data instanceof ArrayBuffer) {
           playAudio(event.data);
         } else {
@@ -163,21 +147,21 @@ export function VoiceAgentDemo() {
             addLog(msg.text, "system");
           }
         }
-      };
+      });
 
-      ws.onclose = () => {
+      ws.addEventListener("close", () => {
         setStatus("disconnected");
         setStatusText("Disconnected");
         addLog("Disconnected");
         stop();
-      };
+      });
 
-      ws.onerror = () => {
+      ws.addEventListener("error", () => {
         setStatus("error");
         setStatusText("Connection error");
         addLog("WebSocket error");
         stop();
-      };
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setStatus("error");

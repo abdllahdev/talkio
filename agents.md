@@ -1,5 +1,3 @@
-# CLAUDE.md
-
 Development guide for the voice-ai monorepo.
 
 ## Monorepo Structure

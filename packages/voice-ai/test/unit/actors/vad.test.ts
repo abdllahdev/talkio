@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
+
 import type { NormalizedAgentConfig, VADContext, VADProvider } from "../../../src";
 import { vadActor } from "../../../src/agent/actors/vad";
 import {

@@ -8,11 +8,12 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
-import type { TTSContext, TTSProvider, NormalizedAgentConfig } from "../../../src";
+
+import type { NormalizedAgentConfig, TTSContext, TTSProvider } from "../../../src";
 import { ttsActor } from "../../../src/agent/actors/tts";
 import {
-  DEFAULT_AUDIO_FORMAT,
   DEFAULT_AUDIO_CONFIG,
+  DEFAULT_AUDIO_FORMAT,
   mockLLMProvider,
   mockSTTProvider,
 } from "../../helpers";

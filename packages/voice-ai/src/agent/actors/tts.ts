@@ -10,14 +10,15 @@
  * - Handling errors from the TTS provider
  * - Respecting abort signals for cancellation
  *
- * The actor receives the text to synthesize and the configured output audio format.
- * It streams audio chunks in real-time, enabling low-latency playback while
- * the TTS provider continues generating audio.
+ * The actor receives the text to synthesize, and the
+ * configured output audio format. It streams audio chunks in real-time,
+ * enabling low-latency playback while the TTS provider continues generating audio.
  *
  * @module agent/actors/tts
  */
 
 import { fromCallback } from "xstate";
+
 import type { NormalizedAgentConfig } from "../../types/config";
 import type { MachineEvent } from "../../types/events";
 
@@ -32,14 +33,74 @@ export const ttsActor = fromCallback<
   const { config, text, abortSignal } = input;
   const provider = config.tts;
   const outputFormat = config.audio.output;
+  const debug = config.debug ?? false;
 
-  provider.synthesize(text, {
-    audioFormat: outputFormat,
-    audioChunk: (audio) => {
-      sendBack({ type: "_tts:chunk", audio, timestamp: Date.now() });
-    },
-    complete: () => sendBack({ type: "_tts:complete", timestamp: Date.now() }),
-    error: (error) => sendBack({ type: "_tts:error", error, timestamp: Date.now() }),
-    signal: abortSignal,
-  });
+  let isAborted = false;
+
+  const handleAbort = () => {
+    isAborted = true;
+  };
+
+  abortSignal.addEventListener("abort", handleAbort);
+
+  // Check if already aborted before starting
+  if (abortSignal.aborted) {
+    isAborted = true;
+    return () => {
+      abortSignal.removeEventListener("abort", handleAbort);
+    };
+  }
+
+  // Set up timeout
+  const timeoutMs = config.timeout?.ttsMs ?? 10000;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  if (timeoutMs > 0) {
+    timeoutId = setTimeout(() => {
+      if (!isAborted) {
+        isAborted = true;
+        if (debug) console.error("[tts-actor] Timeout after", timeoutMs, "ms");
+        sendBack({
+          type: "_tts:error",
+          error: new Error(`TTS timeout after ${timeoutMs}ms`),
+          timestamp: Date.now(),
+        });
+      }
+    }, timeoutMs);
+  }
+
+  try {
+    provider.synthesize(text, {
+      audioFormat: outputFormat,
+      audioChunk: (audio) => {
+        if (isAborted) return;
+        sendBack({ type: "_tts:chunk", audio, timestamp: Date.now() });
+      },
+      complete: () => {
+        if (isAborted) return;
+        if (timeoutId) clearTimeout(timeoutId);
+        sendBack({ type: "_tts:complete", timestamp: Date.now() });
+      },
+      error: (error) => {
+        if (isAborted) return;
+        sendBack({ type: "_tts:error", error, timestamp: Date.now() });
+      },
+      signal: abortSignal,
+    });
+  } catch (error) {
+    if (!isAborted) {
+      if (debug) console.error("[tts-actor] Error starting synthesis:", error);
+      sendBack({
+        type: "_tts:error",
+        error: error instanceof Error ? error : new Error(String(error)),
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  return () => {
+    isAborted = true;
+    if (timeoutId) clearTimeout(timeoutId);
+    abortSignal.removeEventListener("abort", handleAbort);
+  };
 });

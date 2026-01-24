@@ -19,6 +19,7 @@
  */
 
 import type { ActorRefFrom } from "xstate";
+
 import type { AudioFormat } from "../audio/types";
 import type { Message } from "../types/common";
 import type { NormalizedAgentConfig } from "../types/config";

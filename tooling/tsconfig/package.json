@@ -9,6 +9,7 @@
   "exports": {
     "./base.json": "./base.json",
     "./library.json": "./library.json",
-    "./node.json": "./node.json"
+    "./node.json": "./node.json",
+    "./bun.json": "./bun.json"
   }
 }
