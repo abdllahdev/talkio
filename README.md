@@ -1,6 +1,6 @@
 # Talkio
 
-> **⚠️ Vibe-Engineered** — This library was rapidly developed with AI assistance to prove out the API surface. It is **not production-ready**. Use for prototyping and experimentation. Expect rough edges, non-idiomatic patterns, and breaking API changes. Community feedback actively sought.
+> **⚠️ Vibe-Engineered** — This package is **not production-ready**. Suitable for prototyping and experimentation. Expect API changes, rough edges, and non-idiomatic patterns. See the [Package Maturity Model](./PACKAGE-MATURITY.md) for details.
 
 > **Alpha Release** - Under active development.
 
@@ -16,6 +16,18 @@ Talkio is a voice agent orchestration library that coordinates STT, LLM, and TTS
 - **Provider agnostic** — BYO any STT/TTS/LLM, or create custom providers for self-hosted models
 - **Zero infrastructure** — Pure library, no servers or infrastructure required
 - **Filler phrases** — `ctx.say()` for real-time updates during complex workflows (tool calls, reasoning)
+
+## Installation
+
+```bash
+npm install talkio
+```
+
+For provider packages:
+
+```bash
+npm install @talkio/deepgram
+```
 
 ## Why Talkio?
 
@@ -367,12 +379,6 @@ npm install @talkio/deepgram       # Deepgram STT/TTS
 # More providers coming...
 ```
 
-## Installation
-
-```bash
-npm install talkio
-```
-
 ## Quick Start
 
 ```typescript
@@ -463,6 +469,8 @@ agent.stop();
 | `@talkio/deepgram` | Deepgram STT/TTS providers | Available |
 
 More provider packages coming soon.
+
+See [Package Maturity Model](./PACKAGE-MATURITY.md) for information about package maturity levels and current status.
 
 ## Audio Configuration
 
