@@ -1,14 +1,14 @@
 {
-  "name": "@vox/deepgram",
+  "name": "@talkio/deepgram",
   "version": "1.0.0-alpha.1",
-  "description": "Deepgram STT and TTS providers for @vox/core",
+  "description": "Deepgram STT and TTS providers for talkio",
   "keywords": [
     "deepgram",
     "speech-to-text",
     "stt",
+    "talkio",
     "text-to-speech",
-    "tts",
-    "vox"
+    "tts"
   ],
   "homepage": "https://github.com/abdllahdev/voice-ai/tree/main/packages/deepgram#readme",
   "bugs": {
@@ -51,15 +51,15 @@
     "clean": "git clean -xdf node_modules dist .turbo .tsbuildinfo"
   },
   "devDependencies": {
+    "@talkio/tsconfig": "workspace:*",
     "@types/node": "^22.10.2",
-    "@vox/core": "workspace:*",
-    "@vox/tsconfig": "workspace:*",
+    "talkio": "workspace:*",
     "tsdown": "^0.19.0-beta.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },
   "peerDependencies": {
-    "@vox/core": ">=1.0.0-alpha.1"
+    "talkio": ">=1.0.0-alpha.1"
   },
   "engines": {
     "node": ">=20"

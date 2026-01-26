@@ -15,7 +15,7 @@
  * @module deepgram/types
  */
 
-import type { STTProvider, TTSProvider } from "@vox/core";
+import type { STTProvider, TTSProvider } from "talkio";
 
 import type { DeepgramSTTInputFormat } from "./deepgram-stt";
 import type { DeepgramTTSOutputFormat } from "./deepgram-tts";

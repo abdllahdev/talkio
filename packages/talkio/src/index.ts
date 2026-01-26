@@ -1,5 +1,5 @@
 /**
- * @vox/core
+ * talkio
  *
  * A TypeScript package for building real-time voice AI agents.
  *
@@ -20,8 +20,8 @@
  * ## Quick Start
  *
  * ```typescript
- * import { createAgent } from "@vox/core";
- * import { createDeepgram } from "@vox/deepgram";
+ * import { createAgent } from "talkio";
+ * import { createDeepgram } from "@talkio/deepgram";
  *
  * const deepgram = createDeepgram({ apiKey: process.env.DEEPGRAM_API_KEY });
  *
@@ -91,11 +91,6 @@ export {
 } from "./types/config";
 
 export type {
-  AgentErrorEvent,
-  AgentEvent,
-  AgentLifecycleEvent,
-  AgentStartedEvent,
-  AgentStoppedEvent,
   AITurnAudioEvent,
   AITurnEndedEvent,
   AITurnEvent,
@@ -103,6 +98,11 @@ export type {
   AITurnSentenceEvent,
   AITurnStartedEvent,
   AITurnTokenEvent,
+  AgentErrorEvent,
+  AgentEvent,
+  AgentLifecycleEvent,
+  AgentStartedEvent,
+  AgentStoppedEvent,
   DebugEvent,
   HumanTurnAbandonedEvent,
   HumanTurnEndedEvent,
@@ -116,8 +116,8 @@ export type {
 } from "./types/events";
 
 export type {
-  AgentMetrics,
   AITurnMetrics,
+  AgentMetrics,
   AudioMetrics,
   ContentMetrics,
   ErrorMetrics,

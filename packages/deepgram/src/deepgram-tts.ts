@@ -22,7 +22,7 @@
  * @module deepgram/deepgram-tts
  */
 
-import type { TTSContext, TTSProvider } from "@vox/core";
+import type { TTSContext, TTSProvider } from "talkio";
 
 import type { DeepgramProviderSettings, DeepgramTTSMessage, DeepgramTTSOptions } from "./types";
 
@@ -167,7 +167,7 @@ function getDefaultSampleRate(encoding: string): number {
  *
  * @example Basic usage
  * ```typescript
- * import { createDeepgramTTS } from "@vox/deepgram";
+ * import { createDeepgramTTS } from "@talkio/deepgram";
  *
  * const tts = createDeepgramTTS({
  *   apiKey: process.env.DEEPGRAM_API_KEY,

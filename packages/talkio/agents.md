@@ -1,4 +1,4 @@
-# @vox/core Package
+# talkio Package
 
 Orchestration library for realtime voice AI agents using XState's actor model.
 

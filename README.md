@@ -1,15 +1,15 @@
-# Vox
+# Talkio
 
 > **⚠️ Vibe-Engineered** — This library was rapidly developed with AI assistance to prove out the API surface. It is **not production-ready**. Use for prototyping and experimentation. Expect rough edges, non-idiomatic patterns, and breaking API changes. Community feedback actively sought.
 
 > **Alpha Release** - Under active development.
 
-[![npm version](https://img.shields.io/npm/v/@vox/core.svg)](https://www.npmjs.com/package/@vox/core)
+[![npm version](https://img.shields.io/npm/v/talkio.svg)](https://www.npmjs.com/package/talkio)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 **Voice AI orchestration for TypeScript** — pure orchestration, zero infrastructure lock-in.
 
-Vox is a voice agent orchestration library that coordinates STT, LLM, and TTS components with automatic turn management, interruption detection, and real-time streaming. It's designed to be the engine powering your voice AI applications, regardless of where the voice comes from or where you deploy.
+Talkio is a voice agent orchestration library that coordinates STT, LLM, and TTS components with automatic turn management, interruption detection, and real-time streaming. It's designed to be the engine powering your voice AI applications, regardless of where the voice comes from or where you deploy.
 
 - **TypeScript-first** — Built for the JavaScript ecosystem, runs anywhere JS runs
 - **Voice source agnostic** — Works with phone, web, mobile, microphone, WebRTC
@@ -17,7 +17,7 @@ Vox is a voice agent orchestration library that coordinates STT, LLM, and TTS co
 - **Zero infrastructure** — Pure library, no servers or infrastructure required
 - **Filler phrases** — `ctx.say()` for real-time updates during complex workflows (tool calls, reasoning)
 
-## Why Vox?
+## Why Talkio?
 
 Building voice AI agents is deceptively complex. You need to coordinate multiple async streams — audio input, speech recognition, language model generation, speech synthesis, audio output — all while handling brittle edge cases:
 
@@ -36,11 +36,11 @@ Existing solutions come with trade-offs:
 | **OpenAI Agents SDK** | Locked to OpenAI Realtime API                             |
 | **Managed platforms** | Per-minute costs, less flexibility                        |
 
-**Vox takes a different approach**: pure orchestration that runs anywhere JavaScript runs, with no opinions on infrastructure, transport, or providers. Use it as the engine for any voice agent implementation.
+**Talkio takes a different approach**: pure orchestration that runs anywhere JavaScript runs, with no opinions on infrastructure, transport, or providers. Use it as the engine for any voice agent implementation.
 
 ## Architecture
 
-Vox uses a state machine architecture built on [XState](https://xstate.js.org/) with parallel actors:
+Talkio uses a state machine architecture built on [XState](https://xstate.js.org/) with parallel actors:
 
 ```
 Audio In → [STT Actor] → [Turn Detector] → [LLM Actor] → [TTS Actor] → Audio Out
@@ -199,7 +199,7 @@ const llm: LLMFunction = async (ctx) => {
 
 The user hears natural progress updates like _"Checking the weather in Tokyo..."_ followed by _"Looking up available flights..."_ instead of silence during tool execution.
 
-**Comparison**: LiveKit supports fillers via `session.say()` in hooks like `on_user_turn_completed`. Vox provides `ctx.say()` directly in the LLM context — same capability, different ergonomics.
+**Comparison**: LiveKit supports fillers via `session.say()` in hooks like `on_user_turn_completed`. Talkio provides `ctx.say()` directly in the LLM context — same capability, different ergonomics.
 
 ### Sentence-Level Streaming
 
@@ -230,7 +230,7 @@ state.metrics.errors.bySource; // { stt: 0, llm: 1, tts: 0 }
 
 ### Orchestration Libraries
 
-| Feature              | Vox                | LiveKit Agents                      | Pipecat             | OpenAI Agents SDK |
+| Feature              | Talkio             | LiveKit Agents                      | Pipecat             | OpenAI Agents SDK |
 | -------------------- | ------------------ | ----------------------------------- | ------------------- | ----------------- |
 | **Language**         | TypeScript         | Python/TypeScript                   | Python              | TypeScript        |
 | **Infrastructure**   | None               | LiveKit Server + SSL + TURN + Redis | Transport layer     | None              |
@@ -242,16 +242,16 @@ state.metrics.errors.bySource; // { stt: 0, llm: 1, tts: 0 }
 
 **When to use each**:
 
-- **Vox**: TypeScript projects, maximum flexibility, no infrastructure
+- **Talkio**: TypeScript projects, maximum flexibility, no infrastructure
 - **LiveKit Agents**: Already using LiveKit, need WebRTC rooms
 - **Pipecat**: Python projects, need 40+ provider integrations
 - **OpenAI Agents SDK**: Using OpenAI Realtime API, want guardrails/handoffs
 
 ### Managed Platforms
 
-Vox is not a managed platform — it's a library. Managed platforms like Vapi, Retell, and Bland AI handle everything (hosting, scaling, telephony) but with per-minute costs and less flexibility. Vox could power the backend of such platforms.
+Talkio is not a managed platform — it's a library. Managed platforms like Vapi, Retell, and Bland AI handle everything (hosting, scaling, telephony) but with per-minute costs and less flexibility. Talkio could power the backend of such platforms.
 
-| Aspect             | Vox               | Managed Platforms |
+| Aspect             | Talkio            | Managed Platforms |
 | ------------------ | ----------------- | ----------------- |
 | **Pricing**        | Free (Apache-2.0) | Per-minute fees   |
 | **Infrastructure** | You manage        | They manage       |
@@ -260,7 +260,7 @@ Vox is not a managed platform — it's a library. Managed platforms like Vapi, R
 
 ## Deployment
 
-Vox is a pure library — no infrastructure requirements.
+Talkio is a pure library — no infrastructure requirements.
 
 ### Runtime Agnostic
 
@@ -316,7 +316,7 @@ Deploy anywhere JavaScript runs:
 
 ### Why No Built-in LLM?
 
-Vox provides an `LLMFunction` interface instead of bundling LLM clients. This gives you:
+Talkio provides an `LLMFunction` interface instead of bundling LLM clients. This gives you:
 
 - **Choice**: Use Vercel AI SDK, OpenAI SDK, Anthropic SDK, or any other client
 - **Control**: Full access to streaming, tool calls, and model-specific features
@@ -362,22 +362,22 @@ Voice AI has inherently complex state. XState provides:
 Providers are tree-shakeable. Only bundle what you use:
 
 ```bash
-npm install @vox/core           # Core orchestration (~50KB)
-npm install @vox/deepgram       # Deepgram STT/TTS
+npm install talkio           # Core orchestration (~50KB)
+npm install @talkio/deepgram       # Deepgram STT/TTS
 # More providers coming...
 ```
 
 ## Installation
 
 ```bash
-npm install @vox/core
+npm install talkio
 ```
 
 ## Quick Start
 
 ```typescript
-import { createAgent, LLMFunction } from "@vox/core";
-import { createDeepgram } from "@vox/deepgram";
+import { createAgent, LLMFunction } from "talkio";
+import { createDeepgram } from "@talkio/deepgram";
 import { streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
 
@@ -457,10 +457,10 @@ agent.stop();
 
 ## Packages
 
-| Package         | Description                | Status    |
-| --------------- | -------------------------- | --------- |
-| `@vox/core`     | Core orchestration library | Available |
-| `@vox/deepgram` | Deepgram STT/TTS providers | Available |
+| Package            | Description                | Status    |
+| ------------------ | -------------------------- | --------- |
+| `talkio`           | Core orchestration library | Available |
+| `@talkio/deepgram` | Deepgram STT/TTS providers | Available |
 
 More provider packages coming soon.
 
@@ -495,11 +495,7 @@ const agent = createAgent({
 Create providers for self-hosted models or services not yet supported:
 
 ```typescript
-import {
-  createCustomSTTProvider,
-  createCustomLLMProvider,
-  createCustomTTSProvider,
-} from "@vox/core";
+import { createCustomSTTProvider, createCustomLLMProvider, createCustomTTSProvider } from "talkio";
 
 // Custom STT provider
 const sttFormats = [{ encoding: "linear16", sampleRate: 16000, channels: 1 }] as const;

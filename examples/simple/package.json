@@ -1,5 +1,5 @@
 {
-  "name": "@vox/simple-example",
+  "name": "@talkio/simple-example",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,16 +12,16 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.7",
-    "@vox/core": "workspace:*",
-    "@vox/deepgram": "workspace:*",
+    "@talkio/deepgram": "workspace:*",
     "ai": "^6.0.22",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "talkio": "workspace:*"
   },
   "devDependencies": {
+    "@talkio/tsconfig": "workspace:*",
     "@types/bun": "latest",
     "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@vox/tsconfig": "workspace:*"
+    "@types/react-dom": "^19"
   }
 }

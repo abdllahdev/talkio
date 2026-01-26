@@ -88,13 +88,13 @@ jobs:
         run: |
           TAGS=$(git tag --points-at HEAD)
           for TAG in $TAGS; do
-            if [[ $TAG == @vox/core@* ]]; then
-              PACKAGE_NAME="@vox/core"
-              VERSION="${TAG#@vox/core@}"
+            if [[ $TAG == talkio@* ]]; then
+              PACKAGE_NAME="talkio"
+              VERSION="${TAG#talkio@}"
               CHANGELOG_PATH="packages/core/CHANGELOG.md"
-            elif [[ $TAG == @vox/deepgram@* ]]; then
-              PACKAGE_NAME="@vox/deepgram"
-              VERSION="${TAG#@vox/deepgram@}"
+            elif [[ $TAG == @talkio/deepgram@* ]]; then
+              PACKAGE_NAME="@talkio/deepgram"
+              VERSION="${TAG#@talkio/deepgram@}"
               CHANGELOG_PATH="packages/deepgram/CHANGELOG.md"
             else
               continue

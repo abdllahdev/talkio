@@ -1,8 +1,8 @@
 import { openai } from "@ai-sdk/openai";
 import { streamText } from "ai";
+import { createAgent, type LLMContext } from "talkio";
 
-import { createAgent, type LLMContext } from "@vox/core";
-import { createDeepgram } from "@vox/deepgram";
+import { createDeepgram } from "@talkio/deepgram";
 
 import index from "./index.html";
 

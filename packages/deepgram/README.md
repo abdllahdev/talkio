@@ -1,24 +1,24 @@
-# @vox/deepgram
+# @talkio/deepgram
 
-Deepgram STT and TTS providers for [vox](https://github.com/abdllahdev/voice-ai). Uses Deepgram's WebSocket APIs for streaming.
+Deepgram STT and TTS providers for [talkio](https://github.com/abdllahdev/voice-ai). Uses Deepgram's WebSocket APIs for streaming.
 
 ## Installation
 
 ```bash
-bun add @vox/deepgram
+bun add @talkio/deepgram
 # or
-npm install @vox/deepgram
+npm install @talkio/deepgram
 # or
-pnpm add @vox/deepgram
+pnpm add @talkio/deepgram
 ```
 
-**Peer Dependencies**: This package requires `@vox/core` to be installed.
+**Peer Dependencies**: This package requires `talkio` to be installed.
 
 ## Quick Start
 
 ```typescript
-import { createAgent } from "@vox/core";
-import { createDeepgram } from "@vox/deepgram";
+import { createAgent } from "talkio";
+import { createDeepgram } from "@talkio/deepgram";
 
 const deepgram = createDeepgram({
   apiKey: process.env.DEEPGRAM_API_KEY,
@@ -40,7 +40,7 @@ agent.start();
 Create a shared Deepgram instance to reuse configuration across STT and TTS:
 
 ```typescript
-import { createDeepgram } from "@vox/deepgram";
+import { createDeepgram } from "@talkio/deepgram";
 
 const deepgram = createDeepgram({
   apiKey: process.env.DEEPGRAM_API_KEY,
@@ -57,7 +57,7 @@ const tts = deepgram.tts({ model: "aura-2-thalia-en" });
 For more control, import the factory functions directly:
 
 ```typescript
-import { createDeepgramSTT, createDeepgramTTS } from "@vox/deepgram";
+import { createDeepgramSTT, createDeepgramTTS } from "@talkio/deepgram";
 
 const stt = createDeepgramSTT({
   apiKey: process.env.DEEPGRAM_API_KEY,
@@ -195,8 +195,8 @@ const deepgram = createDeepgram({
 ### Full Agent Setup
 
 ```typescript
-import { createAgent } from "@vox/core";
-import { createDeepgram } from "@vox/deepgram";
+import { createAgent } from "talkio";
+import { createDeepgram } from "@talkio/deepgram";
 
 const deepgram = createDeepgram();
 

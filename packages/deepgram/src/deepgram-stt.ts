@@ -23,7 +23,7 @@
  * @module deepgram/deepgram-stt
  */
 
-import type { STTContext, STTProvider } from "@vox/core";
+import type { STTContext, STTProvider } from "talkio";
 
 import type { DeepgramProviderSettings, DeepgramSTTMessage, DeepgramSTTOptions } from "./types";
 
@@ -143,7 +143,7 @@ function resolveApiKey(optionsApiKey?: string, settingsApiKey?: string): string 
  *
  * @example Basic usage
  * ```typescript
- * import { createDeepgramSTT } from "@vox/deepgram";
+ * import { createDeepgramSTT } from "@talkio/deepgram";
  *
  * const stt = createDeepgramSTT({
  *   apiKey: process.env.DEEPGRAM_API_KEY,

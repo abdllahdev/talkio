@@ -1,6 +1,6 @@
-# @vox/deepgram Package
+# @talkio/deepgram Package
 
-Deepgram STT and TTS providers for `@vox/core`. Uses Deepgram's WebSocket APIs for streaming.
+Deepgram STT and TTS providers for `talkio`. Uses Deepgram's WebSocket APIs for streaming.
 
 **Key insight**: Provider implementation — wraps Deepgram's streaming APIs with type-safe interfaces.
 
@@ -32,7 +32,7 @@ const tts = deepgram.tts({ model: "aura-2-thalia-en" });
 **2. Direct Imports:**
 
 ```typescript
-import { createDeepgramSTT, createDeepgramTTS } from "@vox/deepgram";
+import { createDeepgramSTT, createDeepgramTTS } from "@talkio/deepgram";
 const stt = createDeepgramSTT({ apiKey: "...", model: "nova-3" });
 const tts = createDeepgramTTS({ apiKey: "...", model: "aura-2-thalia-en" });
 ```
@@ -164,9 +164,9 @@ export function createDeepgramTTS(
 - `encoding` - Audio encoding (default: "linear16")
 - `sampleRate` - Sample rate in Hz (default: 24000 for linear16, 8000 for mulaw/alaw)
 
-## Integration with @vox/core
+## Integration with talkio
 
-Providers implement the `STTProvider` and `TTSProvider` interfaces from `@vox/core`:
+Providers implement the `STTProvider` and `TTSProvider` interfaces from `talkio`:
 
 - Generic over format types (`STTProvider<DeepgramSTTInputFormat>`)
 - Declare supported formats and defaults

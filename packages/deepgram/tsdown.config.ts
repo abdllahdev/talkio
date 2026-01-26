@@ -7,6 +7,6 @@ export default defineConfig({
   clean: true,
   outDir: "dist",
   target: "es2022",
-  external: ["@vox/core"],
+  external: ["talkio"],
   minify: true,
 });

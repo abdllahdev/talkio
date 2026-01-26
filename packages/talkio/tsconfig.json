@@ -1,5 +1,5 @@
 {
-  "extends": "@vox/tsconfig/library.json",
+  "extends": "@talkio/tsconfig/library.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
     "outDir": "./dist",

@@ -31,7 +31,7 @@
         "type": "alphabetical",
         "order": "asc",
         "ignoreCase": true,
-        "internalPattern": ["^@vox/"],
+        "internalPattern": ["^@talkio/"],
         "newlinesBetween": 1,
         "groups": [
           "builtin",

@@ -1,18 +1,18 @@
-# @vox/core
+# talkio
 
 Orchestration library for building realtime voice AI agents. Coordinates STT, LLM, and TTS with automatic turn management and interruption detection.
 
 ## Installation
 
 ```bash
-npm install @vox/core
+npm install talkio
 ```
 
 ## Quick Start
 
 ```typescript
-import { createAgent } from "@vox/core";
-import { createDeepgram } from "@vox/deepgram";
+import { createAgent } from "talkio";
+import { createDeepgram } from "@talkio/deepgram";
 
 const deepgram = createDeepgram({ apiKey: process.env.DEEPGRAM_API_KEY });
 
@@ -131,11 +131,7 @@ createAgent({ stt, llm, tts });
 Use factory functions to create providers. STT/TTS providers must declare their supported audio formats:
 
 ```typescript
-import {
-  createCustomSTTProvider,
-  createCustomLLMProvider,
-  createCustomTTSProvider,
-} from "@vox/core";
+import { createCustomSTTProvider, createCustomLLMProvider, createCustomTTSProvider } from "talkio";
 
 // Define supported formats for STT
 const sttFormats = [

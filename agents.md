@@ -5,8 +5,8 @@ Development guide for the voice-ai monorepo.
 ```
 voice-ai/
 ├── packages/
-│   ├── core/            # Core orchestration library (@vox/core)
-│   └── deepgram/        # @vox/deepgram provider
+│   ├── core/            # Core orchestration library (talkio)
+│   └── deepgram/        # @talkio/deepgram provider
 ├── tooling/
 │   └── tsconfig/        # Shared TypeScript configs
 ├── turbo.json           # Turborepo configuration
@@ -48,7 +48,7 @@ bun run --cwd packages/core test test/unit/actors/stt.test.ts
 bun run test --cwd /Users/abdllahdev/dev/voice-ai/packages/core
 
 # Or use package.json scripts with filters
-bun run test --filter @vox/core
+bun run test --filter talkio
 ```
 
 ## Code Style
@@ -99,7 +99,7 @@ bun run test --filter @vox/core
 - ❌ WRONG: Disable VAD in `examples/simple/src/server.ts`
 - ✅ CORRECT: Fix VAD handling in `packages/deepgram/src/deepgram-stt.ts`
 
-Note: The core package has been renamed from `voice-ai` to `@vox/core` and the directory from `packages/voice-ai` to `packages/core`.
+Note: The core package has been renamed from `voice-ai` to `talkio` and the directory from `packages/voice-ai` to `packages/core`.
 
 ## Comments
 

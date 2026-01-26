@@ -1,5 +1,5 @@
 {
-  "name": "@vox/core",
+  "name": "talkio",
   "version": "1.0.0-alpha.1",
   "description": "Orchestration library for realtime voice AI agents",
   "homepage": "https://github.com/abdllahdev/voice-ai/tree/main/packages/core#readme",
@@ -63,8 +63,8 @@
     "xstate": "^5.25.0"
   },
   "devDependencies": {
+    "@talkio/tsconfig": "workspace:*",
     "@types/node": "^22.10.2",
-    "@vox/tsconfig": "workspace:*",
     "tsdown": "^0.19.0-beta.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"

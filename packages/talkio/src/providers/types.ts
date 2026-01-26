@@ -3,7 +3,7 @@
  *
  * Defines the type system and contracts for voice AI providers.
  *
- * Provider packages (e.g., `@vox/deepgram`) implement these interfaces
+ * Provider packages (e.g., `@talkio/deepgram`) implement these interfaces
  * via factory functions like `createDeepgramSTT({ apiKey, model })`.
  *
  * @module providers/types
@@ -135,7 +135,7 @@ export interface STTProviderMetadata<
  *
  * @example
  * ```typescript
- * import { createDeepgramSTT } from '@vox/deepgram';
+ * import { createDeepgramSTT } from '@talkio/deepgram';
  *
  * // DeepgramSTT is typed as STTProvider<DeepgramInputFormat>
  * const stt = createDeepgramSTT({
@@ -266,7 +266,7 @@ export interface LLMContext {
  *
  * @example
  * ```typescript
- * import { createOpenAILLM } from '@vox/provider-openai';
+ * import { createOpenAILLM } from '@talkio/provider-openai';
  *
  * const llm = createOpenAILLM({
  *   apiKey: process.env.OPENAI_API_KEY,
@@ -441,7 +441,7 @@ export interface TTSProviderMetadata<
  *
  * @example
  * ```typescript
- * import { createElevenLabsTTS } from '@vox/provider-elevenlabs';
+ * import { createElevenLabsTTS } from '@talkio/provider-elevenlabs';
  *
  * // ElevenLabsTTS is typed as TTSProvider<ElevenLabsOutputFormat>
  * const tts = createElevenLabsTTS({
@@ -524,7 +524,7 @@ export interface VADContext {
  *
  * @example
  * ```typescript
- * import { createSileroVAD } from '@vox/provider-silero';
+ * import { createSileroVAD } from '@talkio/provider-silero';
  *
  * const vad = createSileroVAD({
  *   threshold: 0.5,
@@ -581,7 +581,7 @@ export interface TurnDetectorContext {
  *
  * @example
  * ```typescript
- * import { createSemanticTurnDetector } from '@vox/provider-turn-detector';
+ * import { createSemanticTurnDetector } from '@talkio/provider-turn-detector';
  *
  * const turnDetector = createSemanticTurnDetector({
  *   silenceThresholdMs: 500,

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-
-import { float32ToLinear16, linear16ToFloat32 } from "@vox/core";
+import { float32ToLinear16, linear16ToFloat32 } from "talkio";
 
 const INPUT_SAMPLE_RATE = 16000;
 const OUTPUT_SAMPLE_RATE = 24000;

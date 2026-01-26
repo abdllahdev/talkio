@@ -3,7 +3,7 @@
  *
  * Public API for creating and managing voice AI agents.
  *
- * This module provides the main entry point for the @vox/core library. It exports
+ * This module provides the main entry point for the talkio library. It exports
  * the `createAgent` function which creates a fully configured voice agent instance
  * that orchestrates STT, LLM, and TTS providers for real-time voice conversations.
  *
@@ -370,8 +370,8 @@ function computeAgentMetrics(metricsState: MetricsTrackingState): AgentMetrics {
  *
  * @example Basic usage
  * ```typescript
- * import { createAgent } from "@vox/core";
- * import { createDeepgram } from "@vox/deepgram";
+ * import { createAgent } from "talkio";
+ * import { createDeepgram } from "@talkio/deepgram";
  *
  * const deepgram = createDeepgram({ apiKey: process.env.DEEPGRAM_API_KEY });
  *
