@@ -1,4 +1,4 @@
-name: Release
+name: Publish
 
 on:
   workflow_dispatch:
@@ -13,11 +13,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Release
+  publish:
+    name: Publish
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,14 +70,10 @@ jobs:
       - name: Publish to npm (dry run)
         if: inputs.dry_run == true
         run: bunx changeset publish --no-git-tag
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
         if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
         run: bunx changeset publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Push tags
         if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
