@@ -5,7 +5,7 @@ Development guide for the voice-ai monorepo.
 ```
 voice-ai/
 ├── packages/
-│   ├── core/            # Core orchestration library (talkio)
+│   ├── talkio/            # Core orchestration library (talkio)
 │   └── deepgram/        # @talkio/deepgram provider
 ├── tooling/
 │   └── tsconfig/        # Shared TypeScript configs
@@ -86,7 +86,7 @@ bun run test --filter talkio
 
 **CRITICAL: Package vs Example App Priority**
 
-- **ALWAYS fix bugs in packages first** (`packages/core/`, `packages/deepgram/`, etc.)
+- **ALWAYS fix bugs in packages first** (`packages/talkio/`, `packages/deepgram/`, etc.)
 - **NEVER fix bugs by modifying example apps** (`examples/` directory)
 - Example apps are for demonstration only - they use the packages, they don't define them
 - When a bug is reported, identify the root cause in the package code, not the example usage
