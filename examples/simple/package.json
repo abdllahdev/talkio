@@ -12,11 +12,11 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.7",
-    "@talkio/deepgram": "workspace:*",
+    "@talkio/deepgram": "^1.0.0-alpha.1",
     "ai": "^6.0.22",
     "react": "^19",
     "react-dom": "^19",
-    "talkio": "workspace:*"
+    "talkio": "^1.0.0-alpha.1"
   },
   "devDependencies": {
     "@talkio/tsconfig": "workspace:*",
