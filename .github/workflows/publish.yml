@@ -16,7 +16,6 @@ jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
-    environment: production
     permissions:
       contents: write
       id-token: write
@@ -35,7 +34,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: bun install
@@ -69,11 +67,11 @@ jobs:
 
       - name: Publish to npm (dry run)
         if: inputs.dry_run == true
-        run: bunx changeset publish --no-git-tag
+        run: bunx changeset publish --no-git-tag --provenance
 
       - name: Publish to npm
         if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
-        run: bunx changeset publish
+        run: bunx changeset publish --provenance
 
       - name: Push tags
         if: steps.changesets.outputs.has_changesets == 'true' && inputs.dry_run == false
