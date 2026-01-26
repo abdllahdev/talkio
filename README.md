@@ -1,8 +1,10 @@
 # Talkio
 
+Pronounced "TAWK-yo" - like "Tokyo", but starting with "talk".
+
 > **⚠️ Vibe-Engineered** — This package is **not production-ready**. Suitable for prototyping and experimentation. Expect API changes, rough edges, and non-idiomatic patterns. See the [Package Maturity Model](./PACKAGE-MATURITY.md) for details.
 
-> **Alpha Release** - Under active development.
+> **Alpha Release** — Under active development.
 
 [![npm version](https://img.shields.io/npm/v/talkio.svg)](https://www.npmjs.com/package/talkio)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -17,6 +19,32 @@ Talkio is a voice agent orchestration library that coordinates STT, LLM, and TTS
 - **Zero infrastructure** — Pure library, no servers or infrastructure required
 - **Filler phrases** — `ctx.say()` for real-time updates during complex workflows (tool calls, reasoning)
 
+## At a Glance
+
+- You bring: STT, LLM, and TTS providers (or custom implementations)
+- Talkio handles: turn-taking, interruptions, cancellation, and streaming coordination
+- You consume: an event stream (transcripts, tokens/sentences, and audio)
+
+## Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Why Talkio?](#why-talkio)
+- [Architecture](#architecture)
+- [Why Actors & State Machines?](#why-actors--state-machines)
+- [Handling the Hard Cases](#handling-the-hard-cases)
+- [Unique Features](#unique-features)
+- [Comparison with Alternatives](#comparison-with-alternatives)
+- [Deployment](#deployment)
+- [Design Philosophy](#design-philosophy)
+- [Streaming LLM Example](#streaming-llm-example)
+- [Events](#events)
+- [Packages](#packages)
+- [Audio Configuration](#audio-configuration)
+- [Creating Custom Providers](#creating-custom-providers)
+- [Examples](#examples)
+- [License](#license)
+
 ## Installation
 
 ```bash
@@ -28,6 +56,37 @@ For provider packages:
 ```bash
 npm install @talkio/deepgram
 ```
+
+## Quick Start
+
+This is the smallest useful setup: wire providers, listen to events, and stream audio in.
+
+```typescript
+import { createAgent } from "talkio";
+
+const agent = createAgent({
+  stt: mySTT,
+  llm: myLLM,
+  tts: myTTS,
+  onEvent: (event) => {
+    switch (event.type) {
+      case "human-turn:ended":
+        console.log("User:", event.transcript);
+        break;
+      case "ai-turn:audio":
+        // Pipe to speakers / WebRTC / telephony, etc.
+        playAudio(event.audio);
+        break;
+    }
+  },
+});
+
+agent.start();
+agent.sendAudio(audioChunk); // stream audio chunks as they arrive
+// agent.stop();
+```
+
+For a complete runnable setup (WebSocket server + browser mic), see `examples/simple`.
 
 ## Why Talkio?
 
@@ -379,7 +438,7 @@ npm install @talkio/deepgram       # Deepgram STT/TTS
 # More providers coming...
 ```
 
-## Quick Start
+## Streaming LLM Example
 
 ```typescript
 import { createAgent, LLMFunction } from "talkio";
