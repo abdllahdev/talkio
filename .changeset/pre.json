@@ -1,0 +1,9 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@talkio/deepgram": "1.0.0-alpha.1",
+    "talkio": "1.0.0-alpha.1"
+  },
+  "changesets": []
+}

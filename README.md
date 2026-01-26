@@ -362,7 +362,7 @@ Voice AI has inherently complex state. XState provides:
 Providers are tree-shakeable. Only bundle what you use:
 
 ```bash
-npm install talkio           # Core orchestration (~50KB)
+npm install talkio           # Core orchestration
 npm install @talkio/deepgram       # Deepgram STT/TTS
 # More providers coming...
 ```
