@@ -22,6 +22,7 @@
 import { nanoid } from "nanoid";
 import { createActor } from "xstate";
 
+import { float32ToLinear16 } from "../audio/conversions";
 import type { AudioInput } from "../audio/preprocessor";
 import { normalizeFormat, type AudioFormat } from "../audio/types";
 import type { STTProvider, TTSProvider } from "../providers/types";
@@ -268,13 +269,23 @@ function isRunningState(value: string | Record<string, unknown>): boolean {
  * For Blob inputs, this will throw - use the async version or
  * convert the Blob to ArrayBuffer before calling sendAudio.
  */
-function toArrayBuffer(input: AudioInput): ArrayBuffer {
+function toArrayBuffer(input: AudioInput, encoding: AudioFormat["encoding"]): ArrayBuffer {
   if (input instanceof ArrayBuffer) {
     return input;
   }
 
-  if (input instanceof Float32Array || input instanceof Int16Array || input instanceof Uint8Array) {
-    // Create a copy to ensure we have a standalone ArrayBuffer
+  if (input instanceof Float32Array) {
+    if (encoding === "linear16") {
+      return float32ToLinear16(input);
+    }
+    if (encoding === "float32") {
+      const buffer = new ArrayBuffer(input.byteLength);
+      new Float32Array(buffer).set(input);
+      return buffer;
+    }
+  }
+
+  if (input instanceof Int16Array || input instanceof Uint8Array) {
     const buffer = new ArrayBuffer(input.byteLength);
     new Uint8Array(buffer).set(new Uint8Array(input.buffer, input.byteOffset, input.byteLength));
     return buffer;
@@ -465,7 +476,7 @@ export function createAgent<
     sendAudio(audio: AudioInput) {
       if (isStopped) return;
       // Convert input to ArrayBuffer synchronously
-      const arrayBuffer = toArrayBuffer(audio);
+      const arrayBuffer = toArrayBuffer(audio, inputFormat.encoding);
       actor.send({ type: "_audio:input", audio: arrayBuffer, timestamp: Date.now() });
     },
 

@@ -79,10 +79,10 @@ export interface InterruptionConfig {
  * ```
  */
 export interface TimeoutConfig {
-  /** Timeout for LLM generation in milliseconds. @default 30000 */
+  /** Timeout for LLM generation in milliseconds. Undefined disables the timeout. */
   llmMs?: number;
 
-  /** Timeout for TTS synthesis in milliseconds. @default 10000 */
+  /** Timeout for TTS synthesis in milliseconds. Undefined disables the timeout. */
   ttsMs?: number;
 }
 

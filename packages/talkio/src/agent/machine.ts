@@ -80,7 +80,7 @@ const agentMachineSetup = setup({
     },
 
     sttSpeechDurationMet: ({ context }) => {
-      if (!context.speechStartedAt) return false;
+      if (context.speechStartedAt === null) return false;
       const minDuration = context.config.interruption?.minDurationMs ?? 200;
       return Date.now() - context.speechStartedAt >= minDuration;
     },
@@ -390,11 +390,14 @@ const agentMachineSetup = setup({
       }),
     }),
     recordHumanTurnStart: assign({
-      metrics: ({ context }) => ({
-        ...context.metrics,
-        humanTurnStartTime: Date.now(),
-        totalTurns: context.metrics.totalTurns + 1,
-      }),
+      metrics: ({ context }) => {
+        if (context.metrics.humanTurnStartTime !== null) return context.metrics;
+        return {
+          ...context.metrics,
+          humanTurnStartTime: Date.now(),
+          totalTurns: context.metrics.totalTurns + 1,
+        };
+      },
     }),
 
     recordHumanTurnEnd: assign({
@@ -464,6 +467,17 @@ const agentMachineSetup = setup({
           ...context.metrics,
           currentTokenCount: context.metrics.currentTokenCount + 1,
           currentResponseLength: context.metrics.currentResponseLength + tokenLength,
+        };
+      },
+    }),
+    recordResponseLengthFromComplete: assign({
+      metrics: ({ context, event }) => {
+        if (event.type !== "_llm:complete") return context.metrics;
+        const responseLength = event.fullText.length;
+        if (responseLength <= context.metrics.currentResponseLength) return context.metrics;
+        return {
+          ...context.metrics,
+          currentResponseLength: responseLength,
         };
       },
     }),
@@ -808,6 +822,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 actions: [
                   { type: "setHumanTurnStarted" },
                   { type: "emitHumanTurnStarted" },
+                  { type: "recordHumanTurnStart" },
                   { type: "debugLogEvent" },
                   { type: "emitHumanTurnTranscript" },
                   { type: "updatePartialTranscriptFromEvent" },
@@ -832,6 +847,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 actions: [
                   { type: "setHumanTurnStarted" },
                   { type: "emitHumanTurnStarted" },
+                  { type: "recordHumanTurnStart" },
                   { type: "debugLogEvent" },
                   { type: "emitHumanTurnTranscript" },
                   { type: "forwardToTurnDetector" },
@@ -860,6 +876,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 actions: [
                   { type: "setHumanTurnStarted" },
                   { type: "emitHumanTurnStarted" },
+                  { type: "recordHumanTurnStart" },
                   { type: "debugLogEvent" },
                   { type: "recordHumanTurnEnd" },
                   { type: "emitHumanTurnTranscript" },
@@ -920,6 +937,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 actions: [
                   { type: "setHumanTurnStarted" },
                   { type: "emitHumanTurnStarted" },
+                  { type: "recordHumanTurnStart" },
                   { type: "debugLogEvent" },
                   { type: "recordHumanTurnEnd" },
                   { type: "emitHumanTurnTranscript" },
@@ -1042,6 +1060,7 @@ export const agentMachine = agentMachineSetup.createMachine({
                 guard: "aiTurnHadNoAudio",
                 actions: [
                   { type: "clearLLMRef" },
+                  { type: "recordResponseLengthFromComplete" },
                   { type: "recordAITurnComplete" },
                   { type: "emitAITurnEnded" },
                   { type: "addAssistantMessageFromEvent" },
@@ -1049,7 +1068,11 @@ export const agentMachine = agentMachineSetup.createMachine({
                 ],
               },
               {
-                actions: [{ type: "clearLLMRef" }, { type: "addAssistantMessageFromEvent" }],
+                actions: [
+                  { type: "clearLLMRef" },
+                  { type: "recordResponseLengthFromComplete" },
+                  { type: "addAssistantMessageFromEvent" },
+                ],
               },
             ],
           },
@@ -1177,7 +1200,11 @@ export const agentMachine = agentMachineSetup.createMachine({
       },
     },
     stopped: {
-      entry: [{ type: "abortSessionController" }, { type: "emitAgentStopped" }],
+      entry: [
+        { type: "abortSessionController" },
+        { type: "abortTurnController" },
+        { type: "emitAgentStopped" },
+      ],
       type: "final",
     },
   },

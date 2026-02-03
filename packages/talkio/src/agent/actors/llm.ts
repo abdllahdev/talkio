@@ -54,10 +54,10 @@ export const llmActor = fromCallback<
   }
 
   // Set up timeout
-  const timeoutMs = config.timeout?.llmMs ?? 30000;
+  const timeoutMs = config.timeout?.llmMs;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  if (timeoutMs > 0) {
+  if (timeoutMs && timeoutMs > 0) {
     timeoutId = setTimeout(() => {
       if (!isAborted) {
         isAborted = true;
