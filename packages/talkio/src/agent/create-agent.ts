@@ -438,6 +438,7 @@ export function createAgent<
   });
   const actor = createActor(agentMachine, {
     input: { config: normalizedConfig, audioStreamController },
+    clock: config.simulatedClock,
   });
 
   // Track event subscription for cleanup

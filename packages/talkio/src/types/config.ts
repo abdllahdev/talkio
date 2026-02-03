@@ -6,6 +6,8 @@
  * @module types/config
  */
 
+import type { SimulatedClock } from "xstate";
+
 import type { AudioConfig, AudioFormat, NormalizedAudioConfig } from "../audio/types";
 import type {
   ExtractSTTInputFormat,
@@ -366,6 +368,14 @@ export interface AgentConfig<
    * @default false
    */
   debug?: boolean;
+
+  /**
+   * **Optional.** Custom clock for the XState actor system.
+   *
+   * Pass a `SimulatedClock` in tests to control time deterministically for
+   * delayed events and timeouts managed by the actor system.
+   */
+  simulatedClock?: SimulatedClock;
 }
 
 /**

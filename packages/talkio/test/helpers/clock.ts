@@ -1,0 +1,16 @@
+import { SimulatedClock } from "xstate";
+
+type TestClock = {
+  clock: SimulatedClock;
+  advance: (ms: number) => void;
+};
+
+export function createTestClock(): TestClock {
+  const clock = new SimulatedClock();
+  const advance = (ms: number): void => {
+    clock.increment(ms);
+  };
+  return { clock, advance };
+}
+
+export type { TestClock };
